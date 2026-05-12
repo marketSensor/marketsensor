@@ -153,7 +153,7 @@ function defaultData() {
       { name: 'Momentum', indicators: [
         { id:'rsi_spx',   name:'RSI S&P 500 (14j)',     val:58, sig:'neutral', w:2, raw:'—',       unit:'',        source:'live',      desc:'RSI S&P 500 — chargement en cours via le backend.' },
         { id:'macd_spx',  name:'MACD S&P 500',          val:50, sig:'neutral', w:2, raw:'—',       unit:'',        source:'live',      desc:'MACD S&P 500 — chargement en cours via le backend.' },
-        { id:'stoch',     name:'Stochastique (14,3)',    val:65, sig:'neutral', w:1, raw:'65',      unit:'',        source:'simulated', desc:'Stochastique en zone neutre. (données simulées)' },
+        { id:'stoch',     name:'Stochastique (14,3)',    val:65, sig:'neutral', w:1, raw:'—',       unit:'',        source:'live',      desc:'Stochastique S&P 500 — chargement via le backend.' },
       ]},
       { name: 'Tendance', indicators: [
         { id:'mm50',      name:'Prix vs MM50',           val:78, sig:'buy',     w:2, raw:'—',       unit:'',        source:'live',      desc:'Prix S&P 500 vs MM50 — chargement en cours.' },
@@ -166,13 +166,13 @@ function defaultData() {
         { id:'atr',       name:'ATR (volatilité hist.)', val:42, sig:'neutral', w:1, raw:'—',       unit:'',        source:'live',      desc:'ATR S&P 500 — chargement en cours.' },
       ]},
       { name: 'Sentiment', indicators: [
-        { id:'fg_spx',    name:'Fear & Greed Index',     val:65, sig:'neutral', w:3, raw:'65',      unit:'/100',    source:'simulated', desc:'Indice CNN Fear & Greed. (données simulées — API privée)' },
-        { id:'putcall',   name:'Put / Call Ratio',       val:48, sig:'neutral', w:2, raw:'0.85',    unit:'',        source:'simulated', desc:'Ratio Put/Call à 0.85. (données simulées)' },
-        { id:'aaii',      name:'AAII Sentiment',         val:60, sig:'neutral', w:1, raw:'45 %',    unit:' bulls',  source:'simulated', desc:'Sentiment AAII 45 % bullish. (données simulées)' },
+        { id:'fg_spx',    name:'Fear & Greed Index',     val:65, sig:'neutral', w:3, raw:'65',      unit:'/100',    source:'simulated', desc:'Indice CNN Fear & Greed. (données simulées — API privée CNN)' },
+        { id:'putcall',   name:'Put / Call Ratio',       val:48, sig:'neutral', w:2, raw:'—',       unit:'',        source:'live',      desc:'Ratio Put/Call equity (CBOE) — chargement via le backend.' },
+        { id:'aaii',      name:'AAII Sentiment',         val:60, sig:'neutral', w:1, raw:'—',       unit:'',        source:'live',      desc:'Sentiment AAII hebdomadaire — chargement via le backend.' },
       ]},
       { name: 'Valorisation', indicators: [
         { id:'cape',      name:'Shiller CAPE',           val:22, sig:'sell',    w:3, raw:'—',       unit:'x',       source:'live',      desc:'Shiller CAPE — chargement en cours (scrape multpl.com).' },
-        { id:'pe_fwd',    name:'P/E Forward S&P 500',    val:38, sig:'neutral', w:2, raw:'21.1',    unit:'x',       source:'simulated', desc:'P/E Forward à 21x. (données simulées — API payante)' },
+        { id:'pe_fwd',    name:'P/E Trailing S&P 500',  val:38, sig:'neutral', w:2, raw:'—',       unit:'x',       source:'live',      desc:'P/E Trailing S&P 500 (SPY) — chargement via le backend.' },
       ]},
     ],
     crypto: [
@@ -184,12 +184,12 @@ function defaultData() {
       { name: 'Sentiment Crypto', indicators: [
         { id:'cfg',       name:'Crypto Fear & Greed',    val:50, sig:'neutral', w:3, raw:'—',       unit:'/100',    source:'live',      desc:'Indice Alternative.me — chargement en cours.' },
         { id:'btcdom',    name:'Bitcoin Dominance',      val:54, sig:'neutral', w:1, raw:'—',       unit:'%',       source:'live',      desc:'Dominance BTC (CoinGecko) — chargement en cours.' },
-        { id:'funding',   name:'Funding Rate Perps',     val:55, sig:'neutral', w:2, raw:'0.02 %',  unit:'',        source:'simulated', desc:'Funding légèrement positif. (données simulées)' },
+        { id:'funding',   name:'Funding Rate Perps',     val:55, sig:'neutral', w:2, raw:'—',       unit:'/8h',     source:'live',      desc:'Funding Rate BTC perps (Binance) — chargement via le backend.' },
       ]},
       { name: 'Indicateurs de Cycle', indicators: [
         { id:'picycle',   name:'Pi Cycle Top',           val:28, sig:'buy',     w:3, raw:'—',       unit:'',        source:'live',      desc:'Pi Cycle calculé depuis les prix BTC (CoinGecko) — chargement.' },
         { id:'puell',     name:'Puell Multiple',         val:55, sig:'neutral', w:2, raw:'1.2',     unit:'',        source:'simulated', desc:'Puell Multiple à 1.2 — zone neutre. (données simulées)' },
-        { id:'rainbow',   name:'Rainbow Chart Zone',     val:52, sig:'neutral', w:1, raw:'Zone 4',  unit:'',        source:'simulated', desc:'Phase d\'accumulation selon le modèle. (données simulées)' },
+        { id:'rainbow',   name:'Rainbow Chart Zone',     val:52, sig:'neutral', w:1, raw:'—',       unit:'',        source:'live',      desc:'Rainbow Chart BTC (log-régression) — chargement via le backend.' },
       ]},
       { name: 'Analyse Technique BTC', indicators: [
         { id:'btcrsi',    name:'RSI Bitcoin (14j)',       val:50, sig:'neutral', w:2, raw:'—',       unit:'',        source:'live',      desc:'RSI BTC calculé sur les prix CoinGecko — chargement.' },
@@ -250,9 +250,9 @@ async function fetchLiveData(data) {
     Api.avRSI('GLD'),
   ]);
 
-  /* ── Backend → bourse + matières ───────────────────────────── */
+  /* ── Backend → bourse + crypto + matières ──────────────────── */
   if (backend) {
-    for (const [section, groups] of [['bourse', data.bourse], ['matieres', data.matieres]]) {
+    for (const [section, groups] of [['bourse', data.bourse], ['crypto', data.crypto], ['matieres', data.matieres]]) {
       for (const [id, vals] of Object.entries(backend[section] || {})) {
         if (applyPatch(groups, id, vals)) live++;
       }
@@ -356,13 +356,16 @@ async function fetchLiveData(data) {
    RECOMMANDATION
    ══════════════════════════════════════════════════════════════════ */
 function computeReco(groups) {
-  let b = 0, s = 0, n = 0, t = 0;
+  let b = 0, s = 0, n = 0, t = 0, excluded = 0;
   groups.forEach(g => g.indicators.forEach(i => {
+    if (i.source !== 'live') { excluded++; return; } // ignoré
     t += i.w;
     if (i.sig === 'buy') b += i.w; else if (i.sig === 'sell') s += i.w; else n += i.w;
   }));
-  const bp = Math.round(b/t*100), sp = Math.round(s/t*100), np = 100 - bp - sp;
-  return { sig: bp >= 45 ? 'buy' : sp >= 35 ? 'sell' : 'neutral', bp, sp, np };
+  const bp = t ? Math.round(b/t*100) : 0;
+  const sp = t ? Math.round(s/t*100) : 0;
+  const np = 100 - bp - sp;
+  return { sig: bp >= 45 ? 'buy' : sp >= 35 ? 'sell' : 'neutral', bp, sp, np, excluded };
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -418,7 +421,7 @@ function renderReco(groups) {
           `<div class="reco-row"><span class="reco-rl">${l}</span>
            <div class="reco-track"><div class="reco-fill ${c}" style="width:${p}%"></div></div>
            <span class="reco-pct">${p} %</span></div>`).join('')}
-        <div class="reco-live-count">${live} indicateur${live>1?'s':''} en temps réel</div>
+        <div class="reco-live-count">${live} indicateur${live>1?'s':''} en temps réel${r.excluded ? ` · ${r.excluded} sim. exclus du calcul` : ''}</div>
       </div>
       <div class="reco-right"><p>${RECO_DESC[r.sig][APP.tab]}</p></div>
     </div>`);
@@ -426,7 +429,30 @@ function renderReco(groups) {
 
 function renderIndicator(ind) {
   const dots = [1,2,3].map(i => `<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
-  const tag  = ind.source==='live' ? '<span class="tag-live">Live</span>' : '<span class="tag-sim">Sim</span>';
+  const isSim = ind.source !== 'live';
+
+  if (isSim) {
+    return `<div class="ind ind-sim">
+      <div class="ind-top">
+        <div class="ind-name-wrap">
+          <span class="ind-name">${ind.name}</span>
+          <span class="tag-sim">Non actualisé</span>
+        </div>
+        <span class="badge badge-${ind.sig}" style="opacity:.4">${SIG[ind.sig]}</span>
+      </div>
+      <div class="sim-warning">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Donnée figée — exclue de la recommandation. Valeur du ${new Date().toLocaleDateString('fr-FR', {month:'long', year:'numeric'})}.
+      </div>
+      <div class="meter ind-sim-meter"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%;opacity:.3"></div></div>
+      <div class="ind-foot" style="opacity:.4">
+        <div class="weight">${dots}<span class="weight-label">Importance</span></div>
+        <span class="ind-val">${ind.raw}${ind.unit}</span>
+      </div>
+    </div>`;
+  }
+
+  const tag = '<span class="tag-live">Live</span>';
   return `<div class="ind">
     <div class="ind-top">
       <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span>${tag}</div>

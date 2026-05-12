@@ -392,6 +392,28 @@ body {
 /* ─────────────────────────────────────────────────
    LOADING STATE
 ───────────────────────────────────────────────── */
+/* ── Indicateur simulé (données figées) ──────────────────────── */
+.ind-sim {
+  border-style: dashed;
+  opacity: 0.62;
+  background: transparent;
+  transition: opacity var(--transition), border-color var(--transition);
+}
+.ind-sim:hover { opacity: 0.85; border-color: var(--border-h); background: transparent; }
+
+.sim-warning {
+  display: flex; align-items: flex-start; gap: 7px;
+  font-size: 11px; color: var(--amber);
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px; line-height: 1.5;
+}
+.sim-warning svg { flex-shrink: 0; margin-top: 1px; }
+
+/* ─────────────────────────────────────────────────
+   LOADING STATE
+───────────────────────────────────────────────── */
 .skeleton {
   background: var(--bg-panel);
   border-radius: var(--radius);
