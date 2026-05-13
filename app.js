@@ -346,8 +346,8 @@ async function fetchLiveData(data) {
           try { if (applyPatch(groups, id, vals)) live++; } catch(_) {}
         }
       }
-      // Stocker les analytics du backend
-      if (backend.analytics) APP.analytics = backend.analytics;
+      // Analytics séparées — ne pas bloquer les indicateurs principaux
+      // Chargées via /api/analytics (endpoint dédié, timeout 90s)
     }
   } catch(e) { console.warn('[fetchLive] backend patch:', e.message); }
 
@@ -709,6 +709,17 @@ async function loadAnalytics(data) {
   APP.analytics = data.analytics;
 }
 
+async function fetchAnalytics() {
+  try {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 90000); // 90s timeout
+    const r = await fetch(`${BACKEND}/api/analytics`, { signal: ctrl.signal, cache: 'no-store' });
+    clearTimeout(timer);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) { console.warn('[analytics]', e.message); return null; }
+}
+
 /* ── Panel Analytics ─────────────────────────────────────────────── */
 function toggleAnalytics() {
   APP.analyticsPanelOpen = !APP.analyticsPanelOpen;
@@ -717,6 +728,12 @@ function toggleAnalytics() {
   if (APP.analyticsPanelOpen) {
     renderAnalyticsPanel();
     panel.classList.add('open');
+    // Charger les analytics si pas encore disponibles
+    if (!APP.analytics) {
+      fetchAnalytics().then(data => {
+        if (data) { APP.analytics = data; if (APP.analyticsPanelOpen) renderAnalyticsPanel(); }
+      });
+    }
   } else {
     panel.classList.remove('open');
   }
@@ -724,10 +741,25 @@ function toggleAnalytics() {
 
 function renderAnalyticsPanel() {
   const panel = gel('analytics-panel');
-  if (!panel || !APP.analytics) {
-    if (panel) panel.innerHTML = `
-      <div class="cal-header"><span class="cal-title">📊 Analyse avancée</span><button class="icon-btn" onclick="toggleAnalytics()">✕</button></div>
-      <div style="padding:32px;text-align:center;color:var(--text-3)">Données en cours de chargement…<br><small>Actualise la page pour déclencher le calcul.</small></div>`;
+  if (!panel) return;
+
+  if (!APP.analytics) {
+    panel.innerHTML = `
+      <div class="cal-header">
+        <span class="cal-title">📊 Analyse avancée</span>
+        <button class="icon-btn" onclick="toggleAnalytics()">✕</button>
+      </div>
+      <div style="padding:40px 24px;text-align:center">
+        <div style="font-size:32px;margin-bottom:16px">⏳</div>
+        <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:8px">Calcul en cours…</div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:24px;line-height:1.6">
+          Le backend calcule les corrélations, divergences et backtesting.<br>
+          Cette opération prend 20-60 secondes au premier chargement.
+        </div>
+        <button class="btn-primary" onclick="fetchAnalytics().then(d=>{if(d){APP.analytics=d;renderAnalyticsPanel();}})">
+          ⟳ Rafraîchir les données
+        </button>
+      </div>`;
     return;
   }
 
