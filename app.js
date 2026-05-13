@@ -322,7 +322,8 @@ function applyPatch(groups, id, patch) {
 async function fetchLiveData(data) {
   let live = 0;
 
-  const [fng, global, prices, blockchain, backend, avRsiSpx, avMacdSpx, avRsiGld] = await Promise.all([
+  // Lance toutes les requêtes en parallèle — chacune retourne null si elle échoue
+  const results = await Promise.allSettled([
     Api.cryptoFearGreed(),
     Api.cgGlobal(),
     Api.btcPrices(365),
@@ -333,107 +334,125 @@ async function fetchLiveData(data) {
     Api.avRSI('GLD'),
   ]);
 
-  /* ── Backend → bourse + crypto + matières ──────────────────── */
-  if (backend) {
-    for (const [section, groups] of [['bourse', data.bourse], ['crypto', data.crypto], ['matieres', data.matieres]]) {
-      for (const [id, vals] of Object.entries(backend[section] || {})) {
-        if (applyPatch(groups, id, vals)) live++;
+  const [fng, cgGlobal, prices, blockchain, backend, avRsiSpx, avMacdSpx, avRsiGld]
+    = results.map(r => r.status === 'fulfilled' ? r.value : null);
+
+  // ── Backend → bourse + crypto + matières ─────────────────────
+  try {
+    if (backend) {
+      for (const [section, groups] of [
+        ['bourse', data.bourse], ['crypto', data.crypto], ['matieres', data.matieres]
+      ]) {
+        for (const [id, vals] of Object.entries(backend[section] || {})) {
+          try { if (applyPatch(groups, id, vals)) live++; } catch(_) {}
+        }
       }
     }
-  }
+  } catch(e) { console.warn('[fetchLive] backend patch:', e.message); }
 
-  /* ── Crypto Fear & Greed ─────────────────────────────────────── */
-  if (fng) {
-    const v = fng.value;
-    applyPatch(data.crypto, 'cfg', {
-      val: v, raw: String(v), sig: Calc.fngSig(v),
-      desc: `Indice à ${v} (${fng.label}) — `
-        + (v > 75 ? 'euphorie extrême, risque de correction élevé.'
-         : v < 25 ? 'peur extrême — opportunité d\'achat historique.'
-         : v > 55 ? 'sentiment optimiste, vigilance conseillée.' : 'sentiment neutre.'),
-    }); live++;
-  }
-
-  /* ── BTC Dominance ───────────────────────────────────────────── */
-  if (global) {
-    const dom = Math.round(global.btcDom * 10) / 10;
-    applyPatch(data.crypto, 'btcdom', {
-      val: Math.min(100, Math.round(dom)), raw: dom.toFixed(1),
-      sig: dom > 58 ? 'sell' : dom < 42 ? 'buy' : 'neutral',
-      desc: `Dominance BTC à ${dom.toFixed(1)} % (CoinGecko) — `
-        + (dom > 58 ? 'Bitcoin ultra-dominant, altcoins sous pression.'
-         : dom < 45 ? 'Potentielle altseason, rotations vers les altcoins.'
-         : 'Marché crypto équilibré.'),
-    }); live++;
-  }
-
-  /* ── BTC Prices → RSI · MACD · Pi Cycle ─────────────────────── */
-  if (prices && prices.length >= 30) {
-    const rsi = Calc.rsi(prices, 14);
-    if (rsi !== null) {
-      applyPatch(data.crypto, 'btcrsi', {
-        val: rsi, raw: String(rsi), sig: Calc.rsiSig(rsi),
-        desc: `RSI BTC à ${rsi} (${prices.length}j, CoinGecko) — `
-          + (rsi > 70 ? 'suracheté.' : rsi < 30 ? 'survendu — opportunité d\'achat.' : 'zone neutre.'),
+  // ── Crypto Fear & Greed ───────────────────────────────────────
+  try {
+    if (fng) {
+      const v = fng.value;
+      applyPatch(data.crypto, 'cfg', {
+        val: v, raw: String(v), sig: Calc.fngSig(v),
+        desc: `Indice à ${v} (${fng.label}) — `
+          + (v > 75 ? 'euphorie extrême, risque de correction élevé.'
+           : v < 25 ? "peur extrême — opportunité d'achat historique."
+           : v > 55 ? 'sentiment optimiste, vigilance conseillée.' : 'sentiment neutre.'),
       }); live++;
     }
-    const macd = Calc.macdSign(prices);
-    if (macd !== null) {
-      applyPatch(data.crypto, 'btcmacd', {
-        val: macd > 0 ? 72 : 28, raw: macd > 0 ? 'Positif' : 'Négatif',
-        sig: macd > 0 ? 'buy' : 'sell',
-        desc: `MACD BTC ${macd > 0 ? 'positif — tendance haussière.' : 'négatif — tendance baissière.'} (CoinGecko)`,
+  } catch(e) { console.warn('[fetchLive] FNG:', e.message); }
+
+  // ── BTC Dominance ─────────────────────────────────────────────
+  try {
+    if (cgGlobal) {
+      const dom = Math.round(cgGlobal.btcDom * 10) / 10;
+      applyPatch(data.crypto, 'btcdom', {
+        val: Math.min(100, Math.round(dom)), raw: dom.toFixed(1),
+        sig: dom > 58 ? 'sell' : dom < 42 ? 'buy' : 'neutral',
+        desc: `Dominance BTC à ${dom.toFixed(1)} % (CoinGecko) — `
+          + (dom > 58 ? 'Bitcoin ultra-dominant, altcoins sous pression.'
+           : dom < 45 ? 'Potentielle altseason, rotations vers les altcoins.'
+           : 'Marché crypto équilibré.'),
       }); live++;
     }
-    const mm111 = prices.length >= 111 ? Calc.sma(prices, 111) : null;
-    const mm350 = prices.length >= 350 ? Calc.sma(prices, 350) : null;
-    if (mm111 && mm350) {
-      const ratio = mm111 / (2 * mm350);
-      applyPatch(data.crypto, 'picycle', {
-        raw: `${(ratio * 100).toFixed(0)} %`,
-        val: ratio >= 0.96 ? 90 : Math.max(10, Math.round(ratio * 60)),
-        sig: ratio >= 0.96 ? 'sell' : 'buy',
-        desc: ratio >= 0.96
-          ? `Pi Cycle proche du déclenchement (${(ratio*100).toFixed(0)} %) — signal de sommet de cycle.`
-          : `Pi Cycle non déclenché (ratio ${(ratio*100).toFixed(0)} %) — loin du sommet. Signal haussier.`,
+  } catch(e) { console.warn('[fetchLive] BTC dom:', e.message); }
+
+  // ── BTC Prices → RSI, MACD, Pi Cycle ─────────────────────────
+  try {
+    if (prices && prices.length >= 30) {
+      const rsi = Calc.rsi(prices, 14);
+      if (rsi !== null) {
+        applyPatch(data.crypto, 'btcrsi', {
+          val: rsi, raw: String(rsi), sig: Calc.rsiSig(rsi),
+          desc: `RSI BTC à ${rsi} (${prices.length}j, CoinGecko) — `
+            + (rsi > 70 ? 'suracheté.' : rsi < 30 ? "survendu — opportunité d'achat." : 'zone neutre.'),
+        }); live++;
+      }
+      const macd = Calc.macdSign(prices);
+      if (macd !== null) {
+        applyPatch(data.crypto, 'btcmacd', {
+          val: macd > 0 ? 72 : 28, raw: macd > 0 ? 'Positif' : 'Négatif',
+          sig: macd > 0 ? 'buy' : 'sell',
+          desc: `MACD BTC ${macd > 0 ? 'positif — tendance haussière.' : 'négatif — tendance baissière.'} (CoinGecko)`,
+        }); live++;
+      }
+      const mm111 = prices.length >= 111 ? Calc.sma(prices, 111) : null;
+      const mm350 = prices.length >= 350 ? Calc.sma(prices, 350) : null;
+      if (mm111 && mm350) {
+        const ratio = mm111 / (2 * mm350);
+        applyPatch(data.crypto, 'picycle', {
+          raw: `${(ratio * 100).toFixed(0)} %`,
+          val: ratio >= 0.96 ? 90 : Math.max(10, Math.round(ratio * 60)),
+          sig: ratio >= 0.96 ? 'sell' : 'buy',
+          desc: ratio >= 0.96
+            ? `Pi Cycle proche du déclenchement (${(ratio*100).toFixed(0)} %).`
+            : `Pi Cycle non déclenché (ratio ${(ratio*100).toFixed(0)} %) — loin du sommet.`,
+        }); live++;
+      }
+    }
+  } catch(e) { console.warn('[fetchLive] BTC prices:', e.message); }
+
+  // ── Hash Rate ─────────────────────────────────────────────────
+  try {
+    if (blockchain && blockchain.hashRate) {
+      const hr = blockchain.hashRate;
+      const hrEH = hr > 1e8 ? hr / 1e9 : hr > 1e5 ? hr / 1e6 : hr;
+      const display = `${Math.round(hrEH)} EH/s`;
+      applyPatch(data.crypto, 'hashrate', {
+        raw: display, val: Math.min(97, Calc.norm(hrEH, 100, 800)),
+        sig: hrEH > 400 ? 'buy' : 'neutral',
+        desc: `Hash Rate BTC : ${display} (blockchain.info).`,
       }); live++;
     }
-  }
+  } catch(e) { console.warn('[fetchLive] hashrate:', e.message); }
 
-  /* ── Hash Rate ───────────────────────────────────────────────── */
-  if (blockchain?.hashRate) {
-    const hr = blockchain.hashRate;
-    const hrEH = hr > 1e8 ? hr / 1e9 : hr > 1e5 ? hr / 1e6 : hr;
-    const display = `${Math.round(hrEH)} EH/s`;
-    applyPatch(data.crypto, 'hashrate', {
-      raw: display, val: Math.min(97, Calc.norm(hrEH, 100, 800)),
-      sig: hrEH > 400 ? 'buy' : 'neutral',
-      desc: `Hash Rate BTC : ${display} (blockchain.info). `
-        + (hrEH > 500 ? 'Niveau historiquement très élevé — confiance maximale des mineurs.' : 'Réseau sécurisé.'),
-    }); live++;
-  }
-
-  /* ── Alpha Vantage (cache 24h, fallback si backend absent) ─── */
-  if (findInd(data.bourse, 'rsi_spx')?.source !== 'live' && typeof avRsiSpx === 'number' && !isNaN(avRsiSpx)) {
-    const v = Math.round(avRsiSpx);
-    applyPatch(data.bourse, 'rsi_spx', { val: v, raw: String(v), sig: Calc.rsiSig(avRsiSpx),
-      desc: `RSI S&P 500 (SPY) à ${v} (Alpha Vantage, cache 24h).` }); live++;
-  }
-  if (findInd(data.bourse, 'macd_spx')?.source !== 'live' && avMacdSpx) {
-    const bull = avMacdSpx.macd > avMacdSpx.signal;
-    applyPatch(data.bourse, 'macd_spx', { sig: bull ? 'buy' : 'sell', val: bull ? 70 : 30,
-      raw: bull ? 'Positif' : 'Négatif',
-      desc: `MACD SPY ${bull ? 'haussier.' : 'baissier.'} (Alpha Vantage, cache 24h)` }); live++;
-  }
-  if (findInd(data.matieres, 'goldrsi')?.source !== 'live' && typeof avRsiGld === 'number' && !isNaN(avRsiGld)) {
-    const v = Math.round(avRsiGld);
-    applyPatch(data.matieres, 'goldrsi', { val: v, raw: String(v), sig: Calc.rsiSig(avRsiGld),
-      desc: `RSI Or (GLD ETF) à ${v} (Alpha Vantage, cache 24h).` }); live++;
-  }
+  // ── Alpha Vantage (cache 24h) ─────────────────────────────────
+  try {
+    if (findInd(data.bourse, 'rsi_spx')?.source !== 'live' && typeof avRsiSpx === 'number' && !isNaN(avRsiSpx)) {
+      const v = Math.round(avRsiSpx);
+      applyPatch(data.bourse, 'rsi_spx', { val: v, raw: String(v), sig: Calc.rsiSig(avRsiSpx),
+        desc: `RSI S&P 500 (SPY) à ${v} — Alpha Vantage, cache 24h.` }); live++;
+    }
+    if (findInd(data.bourse, 'macd_spx')?.source !== 'live' && avMacdSpx) {
+      const bull = avMacdSpx.macd > avMacdSpx.signal;
+      applyPatch(data.bourse, 'macd_spx', { sig: bull ? 'buy' : 'sell', val: bull ? 70 : 30,
+        raw: bull ? 'Positif' : 'Négatif',
+        desc: `MACD SPY ${bull ? 'haussier' : 'baissier'} — Alpha Vantage, cache 24h.` }); live++;
+    }
+    if (findInd(data.matieres, 'goldrsi')?.source !== 'live' && typeof avRsiGld === 'number' && !isNaN(avRsiGld)) {
+      const v = Math.round(avRsiGld);
+      applyPatch(data.matieres, 'goldrsi', { val: v, raw: String(v), sig: Calc.rsiSig(avRsiGld),
+        desc: `RSI Or (GLD ETF) à ${v} — Alpha Vantage, cache 24h.` }); live++;
+    }
+  } catch(e) { console.warn('[fetchLive] AV:', e.message); }
 
   APP.liveCount = live;
   return data;
 }
+
+
 
 /* ══════════════════════════════════════════════════════════════════
    RECOMMANDATION + CONSTANTES UI
@@ -888,9 +907,9 @@ async function refresh() {
     await Promise.all([reportSignals(), loadHistory(), loadCalendar()]);
     renderContent();
   } catch(e) {
-    console.error('[refresh]',e);
-    setStatus('error','Erreur de chargement');
-    if(APP.data) renderContent(); // Afficher quand même les données existantes
+    console.error('[refresh]', e);
+    setStatus('error', `Erreur : ${e.message || e}`);
+    if (APP.data) renderContent();
   }
   APP.loading=false;
   if(btn) btn.style.opacity='1';
