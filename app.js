@@ -712,9 +712,13 @@ async function loadAnalytics(data) {
 async function fetchAnalytics() {
   try {
     const ctrl  = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 90000); // 90s timeout
+    const timer = setTimeout(() => ctrl.abort(), 20000);
     const r = await fetch(`${BACKEND}/api/analytics`, { signal: ctrl.signal, cache: 'no-store' });
     clearTimeout(timer);
+    if (r.status === 202) {
+      const d = await r.json();
+      return { _computing: true, store_size: d.store_size || 0 };
+    }
     if (!r.ok) return null;
     return await r.json();
   } catch(e) { console.warn('[analytics]', e.message); return null; }
@@ -734,19 +738,21 @@ function toggleAnalytics() {
   }
 }
 
-function _startAnalyticsPolling(attempt = 1, maxAttempts = 18) {
+function _startAnalyticsPolling(attempt = 1, maxAttempts = 24) {
   fetchAnalytics().then(data => {
-    if (data && !data.error) {
+    if (!APP.analyticsPanelOpen) return;
+    if (data && !data._computing && !data.error) {
       APP.analytics = data;
-      if (APP.analyticsPanelOpen) renderAnalyticsPanel();
-    } else if (attempt < maxAttempts && APP.analyticsPanelOpen) {
-      // Mettre à jour le message de chargement avec le compteur
-      const el = gel('analytics-panel');
-      if (el) {
-        const msg = el.querySelector('.analytics-retry-msg');
-        if (msg) msg.textContent = `Tentative ${attempt + 1}/${maxAttempts} — nouvelle tentative dans 10s…`;
-      }
-      setTimeout(() => _startAnalyticsPolling(attempt + 1, maxAttempts), 10000);
+      renderAnalyticsPanel();
+      return;
+    }
+    const msg = document.querySelector('#analytics-panel .analytics-retry-msg');
+    if (msg) {
+      const info = data?._computing ? ` (${data.store_size} actifs chargés)` : '';
+      msg.textContent = `Tentative ${attempt}/${maxAttempts}${info} — retry dans 15s…`;
+    }
+    if (attempt < maxAttempts) {
+      setTimeout(() => _startAnalyticsPolling(attempt + 1, maxAttempts), 15000);
     }
   });
 }
