@@ -1120,3 +1120,282 @@ async function refresh() {
     gel('settings-modal').style.display   = 'none';
   };
 })();
+
+/* ══════════════════════════════════════════════════════════════════
+   EXPLICATIONS PÉDAGOGIQUES — INDICATOR_INFO
+   ══════════════════════════════════════════════════════════════════ */
+const INDICATOR_INFO = {
+  /* ── BOURSE ──────────────────────────────────────────────────── */
+  rsi_spx: {
+    what: "Le RSI (Relative Strength Index) mesure la vélocité et l'amplitude des variations de prix sur une fenêtre de 14 jours. Il oscille entre 0 et 100.",
+    why: "C'est l'un des indicateurs les plus utilisés par les traders professionnels depuis sa création. Il permet de détecter les excès de marché — moments où les investisseurs ont poussé le prix trop haut ou trop bas par rapport à la tendance réelle.",
+    how: "RSI < 30 : marché survendu, rebond probable. RSI > 70 : marché suracheté, correction possible. Zone 30-70 : momentum neutre. À noter : en tendance haussière forte, le RSI peut rester > 70 longuement sans correction.",
+    creator: "J. Welles Wilder Jr. (1978)",
+  },
+  macd_spx: {
+    what: "Le MACD est la différence entre la moyenne mobile exponentielle 12 jours et 26 jours. Une ligne de signal (EMA 9j du MACD) est tracée pour détecter les croisements.",
+    why: "Il combine tendance et momentum en un seul indicateur. Le croisement du MACD avec sa ligne de signal est l'un des signaux les plus fiables pour confirmer un retournement de tendance.",
+    how: "MACD au-dessus de la ligne de signal : tendance haussière confirmée. En dessous : tendance baissière. La divergence entre le MACD et le prix est particulièrement puissante pour anticiper les retournements.",
+    creator: "Gerald Appel (1979)",
+  },
+  vix: {
+    what: "Le VIX ('indice de la peur') mesure la volatilité implicite attendue du S&P 500 sur les 30 prochains jours, calculée à partir des prix des options.",
+    why: "Il reflète le niveau d'anxiété des investisseurs institutionnels. Un VIX élevé signale la panique — qui historiquement correspond à des points d'achat. Un VIX très bas signale la complaisance — qui précède souvent les chocs.",
+    how: "VIX < 15 : complaisance dangereuse. VIX 15-25 : conditions normales. VIX > 30 : peur élevée, opportunité contrariante. VIX > 40 : capitulation, points d'achat historiques majeurs (2008, 2020).",
+    creator: "CBOE (1993)",
+  },
+  cape: {
+    what: "Le Shiller CAPE (Cyclically Adjusted P/E) divise le cours du S&P 500 par la moyenne des bénéfices réels des 10 dernières années, lissant ainsi les cycles économiques.",
+    why: "Il corrige le biais des P/E traditionnels qui fluctuent selon les cycles de bénéfices. Shiller a démontré qu'un CAPE élevé prédit des rendements futurs plus faibles sur 10 ans — confirmé historiquement.",
+    how: "Moyenne historique ≈ 16-17x. CAPE > 30 : marchés chers, rendements futurs probablement faibles. CAPE > 40 : zone de bulle historique. CAPE < 12 : marchés bon marché. Attention : le CAPE peut rester élevé longtemps en période de taux bas.",
+    creator: "Robert Shiller, Université Yale (1988)",
+  },
+  fg_spx: {
+    what: "L'indice Fear & Greed de CNN agrège 7 indicateurs : momentum du marché, force des actions, largeur du marché, options Put/Call, junk bonds, demande de valeur refuge, volatilité.",
+    why: "Les marchés sont souvent irrationnels à court terme — la peur et la cupidité créent des extrêmes exploitables. 'Soyez avide quand les autres ont peur' (Warren Buffett). Cet indice quantifie ces extrêmes.",
+    how: "0-24 : Peur extrême → opportunité d'achat contrariante. 25-44 : Peur. 45-55 : Neutre. 56-74 : Cupidité → vigilance. 75-100 : Cupidité extrême → signal de prudence.",
+    creator: "CNN Money",
+  },
+  putcall: {
+    what: "Le ratio Put/Call compare le volume des options de vente (puts) au volume des options d'achat (calls). Un put donne le droit de vendre, un call le droit d'acheter.",
+    why: "Les options révèlent les anticipations des investisseurs institutionnels. Quand tout le monde achète des puts (protection à la baisse), c'est souvent un signal contrariant positif — la peur est déjà dans les prix.",
+    how: "Ratio > 1.0 : excès de puts, peur élevée → signal contrariant haussier. Ratio < 0.7 : excès de calls, euphorie → signal de prudence. Ratio ~0.85 : sentiment équilibré.",
+    creator: "CBOE",
+  },
+  bollinger: {
+    what: "Les bandes de Bollinger encadrent le cours avec deux bandes situées à 2 écarts-types de la moyenne mobile 20 jours. Environ 95% des prix restent dans les bandes.",
+    why: "Elles mesurent la volatilité relative du marché. Quand les bandes se resserrent (compression), un mouvement directionnel fort est imminent. Les touches de bandes extrêmes signalent des excès.",
+    how: "Prix proche de la bande haute (> 80%) : surachat technique. Prix proche de la bande basse (< 20%) : survente technique. Compression des bandes : mouvement imminent (direction indéterminée sans signal complémentaire).",
+    creator: "John Bollinger (1980s)",
+  },
+
+  /* ── CRYPTO — ON-CHAIN ───────────────────────────────────────── */
+  mvrv: {
+    what: "Le MVRV Z-Score compare la capitalisation boursière du Bitcoin (Market Value) à la valeur réalisée (coût d'acquisition moyen de tous les BTC en circulation). Le Z-Score normalise statistiquement cet écart.",
+    why: "C'est l'un des indicateurs on-chain les plus puissants pour identifier les zones de bulle et de capitulation. Il mesure si les holders sont globalement en profit (distribution) ou en perte (capitulation).",
+    how: "Z-Score > 7 : zone de vente historique (bulle). Z-Score 2-7 : optimisme/euphotie. Z-Score 0-2 : zone neutre. Z-Score < 0 : capitulation, opportunité d'achat historique majeure (BTC se négocie sous son coût de base).",
+    creator: "David Puell & Murad Mahmudov",
+  },
+  nupl: {
+    what: "Le NUPL (Net Unrealized Profit/Loss) mesure le pourcentage des détenteurs de Bitcoin actuellement en profit non réalisé, en valeur nette.",
+    why: "Il reflète directement le sentiment des holders à long terme. En période d'euphorie, presque tout le monde est en profit — ce qui crée une pression vendeuse latente. En capitulation, les pertes non réalisées élevées signalent un fond de marché.",
+    how: "< 0 : capitulation (holders en perte nette, fonds historiques). 0-0.25 : espoir/peur. 0.25-0.5 : optimisme. 0.5-0.75 : croyance/excitation. > 0.75 : euphorie (zone de distribution).",
+    creator: "Glassnode",
+  },
+  sopr: {
+    what: "Le SOPR (Spent Output Profit Ratio) mesure le ratio profit/perte des BTC déplacés chaque jour. Un SOPR > 1 signifie que les vendeurs vendent en profit.",
+    why: "Il capture le comportement réel des vendeurs. Quand le SOPR tombe sous 1, les détenteurs vendent à perte — phénomène rare qui correspond souvent à des capitulations et des fonds de marché.",
+    how: "SOPR > 1.14 : distributions importantes, vendeurs très profitables. SOPR ≈ 1 : équilibre sain. SOPR < 0.98 : capitulation, vendeurs en perte → opportunité historique. Rebond du SOPR depuis < 1 : signal de reprise.",
+    creator: "Renato Shirakashi (Glassnode)",
+  },
+  cdd: {
+    what: "Le CDD (Coin Days Destroyed) pondère les mouvements de BTC par leur ancienneté. 1 BTC immobile depuis 100 jours qui bouge = 100 'coin days destroyed'.",
+    why: "Il détecte le comportement des 'anciens holders' — les baleines et early adopters qui ont une forte conviction. Quand ils bougent leurs coins après de longues périodes, c'est souvent pour prendre des profits aux sommets.",
+    how: "CDD très élevé : les anciens holders distribuent → signal de sommet potentiel. CDD faible : les anciens holders conservent → comportement haussier. Les pics de CDD aux sommets de cycle sont remarquablement cohérents.",
+    creator: "Glassnode",
+  },
+  nvt: {
+    what: "Le NVT Signal (Network Value to Transactions) est le 'P/E du Bitcoin' : il compare la capitalisation boursière au volume de transactions sur la blockchain.",
+    why: "Si le réseau est fortement utilisé par rapport à sa valorisation, le NVT est bas → sous-évalué fondamentalement. Un NVT élevé signifie que le prix ne justifie pas l'activité réelle du réseau.",
+    how: "NVT < 50 : réseau activement utilisé, valeur fondamentale solide. NVT 50-150 : zone normale. NVT > 150 : réseau sous-utilisé vs capitalisation → surévaluation potentielle.",
+    creator: "Willy Woo",
+  },
+  picycle: {
+    what: "Le Pi Cycle Top utilise le croisement de la MM111 avec 2 fois la MM350. Ces nombres approximent le ratio Pi (π ≈ 3.14), d'où le nom.",
+    why: "Historiquement, ce croisement a prédit les 3 derniers sommets de cycle Bitcoin avec une précision remarquable (quelques jours d'écart). C'est un signal de fin de bull market particulièrement fiable.",
+    how: "Tant que MM111 < 2×MM350 : pas de signal de sommet, environnement favorable. Croisement (MM111 ≈ 2×MM350) : signal de sommet de cycle historique, réduction drastique d'exposition recommandée.",
+    creator: "Harold Christopher Burger",
+  },
+  puell: {
+    what: "Le Puell Multiple compare les revenus journaliers des mineurs (en USD) à leur moyenne sur 365 jours. Il mesure la profitabilité relative du minage.",
+    why: "Les mineurs sont des vendeurs naturels — ils doivent couvrir leurs coûts. Quand leurs revenus sont très élevés (Puell > 4), la pression vendeuse des mineurs est maximale. Quand ils vendent à perte (Puell < 0.5), le marché est proche d'un fond.",
+    how: "Puell > 4 : mineurs très profitables, distribution probable → zone de vente. Puell 0.5-4 : zone normale. Puell < 0.5 : mineurs en détresse → zone d'accumulation historique.",
+    creator: "David Puell",
+  },
+  rainbow: {
+    what: "Le Rainbow Chart modélise le prix de Bitcoin sur une régression logarithmique depuis sa création, entourée de 9 bandes colorées représentant les phases de cycle.",
+    why: "Bitcoin suit historiquement une croissance logarithmique avec des cycles de 4 ans. Ce modèle permet de visualiser où se situe le prix actuel dans ce cycle à très long terme.",
+    how: "Zones 1-2 (bleu) : achat exceptionnel. Zones 3-4 : accumulation. Zone 5 : conserver. Zones 6-7 : vigilance. Zones 8-9 (rouge) : vendre. Le modèle prédit une croissance continue à long terme mais avec des cycles.",
+    creator: "Über Holger (modèle log)",
+  },
+  mayer: {
+    what: "Le Mayer Multiple divise le cours actuel du Bitcoin par sa moyenne mobile 200 jours. C'est une mesure de l'écart entre le prix et sa tendance long terme.",
+    why: "La MM200 est la référence universelle de tendance long terme. Trace Mayer a calculé qu'un Mayer Multiple > 2.4 a historiquement correspondu aux zones de bulle, et < 1.0 aux opportunités d'accumulation exceptionnelles.",
+    how: "< 0.8 : prix sous la MM200, achat historique. 0.8-1.5 : zone neutre à favorable. 1.5-2.4 : prudence croissante. > 2.4 : zone de vente historique selon Trace Mayer. La moyenne de toutes les valeurs historiques est ≈ 1.34.",
+    creator: "Trace Mayer",
+  },
+  btcrsim: {
+    what: "Le RSI Mensuel de Bitcoin calcule le RSI sur les clôtures mensuelles plutôt que journalières, filtrant le bruit à court terme pour capturer les signaux de cycle.",
+    why: "C'est l'un des indicateurs les plus fiables pour identifier les sommets de cycle. Historiquement, chaque fois que le RSI mensuel BTC a dépassé 90, Bitcoin était proche d'un sommet majeur de plusieurs mois.",
+    how: "RSI mensuel > 90 : zone de sommet de cycle historique, réduction d'exposition majeure recommandée. RSI 70-90 : bull market avancé, vigilance. RSI 40-70 : zone saine. RSI < 40 : survente mensuelle, accumulation historique.",
+    creator: "Analyse technique classique",
+  },
+  hashrate: {
+    what: "Le Hash Rate mesure la puissance de calcul totale du réseau Bitcoin (en Exahash/seconde). Il reflète directement l'engagement financier des mineurs.",
+    why: "Les mineurs investissent des millions en matériel et énergie. Un Hash Rate en hausse signifie que les mineurs anticipent des prix futurs plus élevés. Un ATH du Hash Rate = confiance maximale des professionnels du secteur.",
+    how: "Hash Rate croissant = signal haussier (mineurs confiants). Hash Rate en baisse soudaine = capitulation des mineurs (souvent au fond des bear markets). La corrélation inverse entre Hash Rate bas et prix bas est une opportunité d'accumulation.",
+    creator: "Blockchain.info (données temps réel)",
+  },
+  cfg: {
+    what: "L'indice Crypto Fear & Greed d'Alternative.me agrège 5 facteurs : volatilité (25%), momentum/volume (25%), réseaux sociaux (15%), dominance Bitcoin (10%), tendances Google (10%), sondages (15%).",
+    why: "Les marchés crypto sont particulièrement sujets aux comportements irrationnels — FOMO (Fear Of Missing Out) et panique amplifient les mouvements. Cet indice quantifie ces extrêmes émotionnels pour les exploiter de manière contrariante.",
+    how: "0-24 : Peur extrême → accumulation historique. 25-49 : Peur. 50-74 : Cupidité. 75-100 : Cupidité extrême → zone de distribution. Stratégie: acheter dans la peur, vendre dans la cupidité.",
+    creator: "Alternative.me",
+  },
+  funding: {
+    what: "Le Funding Rate est le taux d'intérêt payé entre les détenteurs de positions longues et courtes sur les marchés de futures perpétuels (Binance, etc.). Il se rééquilibre toutes les 8h.",
+    why: "Il mesure l'excès spéculatif en temps réel. Quand les longs paient des taux élevés aux shorts (funding positif élevé), cela signifie que le marché est suracheté par les spéculateurs à effet de levier — source de liquidations en cascade.",
+    how: "Funding > 0.05%/8h : excès de longs, risque de liquidations haussières → prudence. Funding 0-0.05% : zone neutre. Funding négatif : excès de shorts, compression possible (short squeeze).",
+    creator: "BitMEX (pionnier), maintenant standard",
+  },
+
+  /* ── MATIÈRES PREMIÈRES ──────────────────────────────────────── */
+  dxy: {
+    what: "Le Dollar Index (DXY) mesure la valeur du dollar américain contre un panier de 6 devises majeures (EUR 57.6%, JPY 13.6%, GBP 11.9%, CAD 9.1%, SEK 4.2%, CHF 3.6%).",
+    why: "La quasi-totalité des matières premières est libellée en dollars. Un dollar fort rend les commodités plus chères pour les acheteurs étrangers → baisse de la demande → pression sur les prix. Relation inverse quasi-mécanique.",
+    how: "DXY en hausse : pression sur les matières premières. DXY en baisse : soutien structurel aux commodités. La MM200 du DXY est la frontière clé entre contexte favorable et défavorable.",
+    creator: "ICE Futures US (anciennement NYBOT)",
+  },
+  realrates: {
+    what: "Les taux réels sont les taux nominaux des obligations d'État à 10 ans MOINS le taux d'inflation anticipée. Les TIPS (Treasury Inflation-Protected Securities) les mesurent directement.",
+    why: "L'or ne génère pas de revenus. Son coût d'opportunité est directement lié aux taux réels : si les taux réels sont négatifs, détenir de l'or est rationnel vs les obligations. C'est le moteur principal du prix de l'or long terme.",
+    how: "Taux réels < 0% : environnement très favorable à l'or et aux actifs réels. Taux réels 0-1% : contexte neutre. Taux réels > 2% : pression sur l'or et les matières premières sans dividende. Chaque hausse de 1% des taux réels exerce une pression baissière d'environ 10-15% sur l'or.",
+    creator: "Réserve Fédérale / FRED",
+  },
+  goldsil: {
+    what: "Le ratio Or/Argent mesure combien d'onces d'argent sont nécessaires pour acheter une once d'or. Il fluctue entre ~40 et ~120 historiquement.",
+    why: "Historiquement, quand ce ratio est très élevé (> 80), l'argent est sous-évalué par rapport à l'or et tend à surperformer lors du prochain cycle haussier des métaux précieux. L'argent est plus volatil et amplifie les mouvements de l'or.",
+    how: "Ratio > 80 : l'argent est historiquement bon marché vs l'or → favoriser l'argent. Ratio 60-80 : zone normale. Ratio < 60 : l'argent est cher vs l'or. La moyenne historique longue est ~50-60. Un retour à la moyenne depuis 90+ implique +50% de performance relative de l'argent.",
+    creator: "Analyse historique des métaux précieux",
+  },
+  gold_oil_ratio: {
+    what: "Le ratio Or/Pétrole compare le prix de l'or au prix du pétrole WTI. Il indique combien de barils de pétrole peut acheter une once d'or.",
+    why: "C'est un puissant indicateur macroéconomique. En période de croissance économique forte, le pétrole s'apprécie plus que l'or (ratio bas). En récession ou déflation, l'or surperforme (ratio haut).",
+    how: "Ratio < 15 : économie en expansion, pétrole cher → favorable aux actifs risqués. Ratio 15-30 : contexte normal. Ratio > 30 : or très cher vs pétrole → signal de récession ou stress économique. Niveau record post-Covid : >100.",
+    creator: "Analyse macroéconomique",
+  },
+  platpall: {
+    what: "Le ratio Platine/Palladium compare les prix de ces deux métaux du groupe platine (PGM), tous deux utilisés principalement dans les convertisseurs catalytiques automobiles.",
+    why: "Historiquement, le platine se négociait à prime sur le palladium. Depuis 2018, le palladium l'a dépassé en raison de la demande des véhicules essence vs diesel. Une normalisation est anticipée avec la transition vers les véhicules électriques qui réduira la demande pour les deux.",
+    how: "Ratio < 1 (Pt < Pd) : platine à décote historique, potentiel de rattrapage. Ratio 1-1.5 : normalisation en cours. Ratio > 1.5 : platine à premium historique.",
+    creator: "London Platinum & Palladium Market",
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   TOOLTIP AMÉLIORÉ avec explications pédagogiques
+   ══════════════════════════════════════════════════════════════════ */
+function openTooltip(indId) {
+  let ind = null;
+  for (const tab of ['bourse', 'crypto', 'matieres']) {
+    for (const g of (APP.data[tab] || [])) {
+      const found = g.indicators.find(i => i.id === indId);
+      if (found) { ind = { ...found, group: g.name, tab }; break; }
+    }
+    if (ind) break;
+  }
+  if (!ind) return;
+
+  const overlay = gel('tooltip-overlay');
+  const modal   = gel('tooltip-modal');
+  if (!overlay || !modal) return;
+
+  const info = INDICATOR_INFO[ind.id] || null;
+  const dots = [1,2,3].map(i => `<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
+  const SIG_LABEL = { buy:"↑ Signal d'Achat", sell:"↓ Signal de Vente", neutral:"— Signal Neutre" };
+  const col = { buy:'var(--green)', sell:'var(--red)', neutral:'var(--amber)' };
+
+  const educSection = info ? `
+    <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:12px">📚 Comprendre cet indicateur</div>
+
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:4px">Qu'est-ce que c'est ?</div>
+        <p style="font-size:13px;color:var(--text-2);line-height:1.65;margin:0">${info.what}</p>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:4px">Pourquoi c'est pertinent ?</div>
+        <p style="font-size:13px;color:var(--text-2);line-height:1.65;margin:0">${info.why}</p>
+      </div>
+
+      <div style="padding:12px;background:var(--bg-panel);border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:4px">🎯 Comment l'interpréter</div>
+        <p style="font-size:13px;color:var(--text-1);line-height:1.65;margin:0">${info.how}</p>
+      </div>
+
+      ${info.creator ? `<div style="margin-top:8px;font-size:11px;color:var(--text-3)">📖 Source : ${info.creator}</div>` : ''}
+    </div>` : '';
+
+  modal.innerHTML = `
+    <div class="modal-header">
+      <div>
+        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">${ind.group}</div>
+        <h2 class="modal-title">${ind.name}</h2>
+      </div>
+      <button class="icon-btn" onclick="closeTooltip()">✕</button>
+    </div>
+    <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <div class="badge badge-${ind.sig}" style="font-size:13px;padding:5px 14px">${SIG_LABEL[ind.sig]}</div>
+        <div style="font-size:24px;font-weight:700;color:${col[ind.sig]}">${ind.raw}${ind.unit}</div>
+      </div>
+      <div class="meter" style="height:8px;margin-bottom:6px">
+        <div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-3)">
+        <span>Survente / Bas</span><span>Zone neutre</span><span>Surachat / Haut</span>
+      </div>
+      <p style="margin:12px 0 0;font-size:13px;color:var(--text-2);line-height:1.6">${ind.desc}</p>
+    </div>
+    ${educSection}
+    <div style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;background:var(--bg-panel)">
+      <div>
+        <div style="font-size:10px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em">Importance</div>
+        <div class="weight">${dots}<span class="weight-label" style="margin-left:6px">${['','Faible','Modérée','Forte'][ind.w]}</span></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em">Source</div>
+        <span style="font-size:12px;color:${ind.source==='live'?'var(--green)':'var(--amber)'}">● ${ind.source==='live'?'Temps réel':'Donnée simulée'}</span>
+      </div>
+    </div>`;
+
+  overlay.style.display = 'block';
+  modal.style.display   = 'block';
+  modal.scrollTop = 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FIX — ROBUSTESSE DU RENDU INITIAL
+   ══════════════════════════════════════════════════════════════════ */
+
+// Garde la renderContent safe contre les erreurs
+const _rcOrig = renderContent;
+function renderContent() {
+  try {
+    if (!APP.data) return;
+    // S'assurer que APP.history est toujours initialisé
+    if (!APP.history) APP.history = {};
+    _rcOrig();
+  } catch(e) {
+    console.error('[renderContent]', e);
+    try {
+      // Fallback minimal : afficher au moins les groupes bruts
+      const groups = APP.data[APP.tab] || [];
+      const content = gel('content');
+      if (content && groups.length) {
+        content.innerHTML = groups.map(g =>
+          `<div class="section">
+            <div class="section-title">${g.name}</div>
+            <div class="indicators">${g.indicators.map(i =>
+              `<div class="ind"><div class="ind-top">
+                <span class="ind-name">${i.name}</span>
+                <span class="badge badge-${i.sig}">${SIG[i.sig]}</span>
+              </div><div class="ind-desc">${i.desc}</div></div>`
+            ).join('')}</div>
+          </div>`
+        ).join('');
+      }
+    } catch(e2) { console.error('[renderContent fallback]', e2); }
+  }
+}
