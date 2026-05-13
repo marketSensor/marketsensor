@@ -728,15 +728,27 @@ function toggleAnalytics() {
   if (APP.analyticsPanelOpen) {
     renderAnalyticsPanel();
     panel.classList.add('open');
-    // Charger les analytics si pas encore disponibles
-    if (!APP.analytics) {
-      fetchAnalytics().then(data => {
-        if (data) { APP.analytics = data; if (APP.analyticsPanelOpen) renderAnalyticsPanel(); }
-      });
-    }
+    if (!APP.analytics) _startAnalyticsPolling();
   } else {
     panel.classList.remove('open');
   }
+}
+
+function _startAnalyticsPolling(attempt = 1, maxAttempts = 18) {
+  fetchAnalytics().then(data => {
+    if (data && !data.error) {
+      APP.analytics = data;
+      if (APP.analyticsPanelOpen) renderAnalyticsPanel();
+    } else if (attempt < maxAttempts && APP.analyticsPanelOpen) {
+      // Mettre à jour le message de chargement avec le compteur
+      const el = gel('analytics-panel');
+      if (el) {
+        const msg = el.querySelector('.analytics-retry-msg');
+        if (msg) msg.textContent = `Tentative ${attempt + 1}/${maxAttempts} — nouvelle tentative dans 10s…`;
+      }
+      setTimeout(() => _startAnalyticsPolling(attempt + 1, maxAttempts), 10000);
+    }
+  });
 }
 
 function renderAnalyticsPanel() {
@@ -750,15 +762,13 @@ function renderAnalyticsPanel() {
         <button class="icon-btn" onclick="toggleAnalytics()">✕</button>
       </div>
       <div style="padding:40px 24px;text-align:center">
-        <div style="font-size:32px;margin-bottom:16px">⏳</div>
+        <div style="font-size:32px;margin-bottom:16px;animation:spin 2s linear infinite;display:inline-block">⏳</div>
         <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:8px">Calcul en cours…</div>
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:24px;line-height:1.6">
-          Le backend calcule les corrélations, divergences et backtesting.<br>
-          Cette opération prend 20-60 secondes au premier chargement.
+        <div class="analytics-retry-msg" style="font-size:12px;color:var(--text-3);margin-bottom:8px;line-height:1.6">
+          Le backend calcule les corrélations et backtesting depuis les données déjà téléchargées.
         </div>
-        <button class="btn-primary" onclick="fetchAnalytics().then(d=>{if(d){APP.analytics=d;renderAnalyticsPanel();}})">
-          ⟳ Rafraîchir les données
-        </button>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:24px">Retry automatique toutes les 10s</div>
+        <button class="btn-primary" onclick="_startAnalyticsPolling()">⟳ Forcer le rechargement</button>
       </div>`;
     return;
   }
