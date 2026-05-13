@@ -1,27 +1,37 @@
 /* ═══════════════════════════════════════════════════════════════════
-   MarketSense — app.js  v2
-   Sources live :
-     Backend propre  → Bourse (RSI/MACD/Bollinger/VIX/CAPE) + Matières premières
-     Alternative.me  → Crypto Fear & Greed
-     CoinGecko       → BTC Dominance · RSI BTC · MACD BTC · Pi Cycle
-     Blockchain.info → Hash Rate BTC
-     Alpha Vantage   → cache 24h localStorage (quota 25 req/jour préservé)
+   MarketSense — app.js  (version unifiée, une seule définition par fn)
    ═══════════════════════════════════════════════════════════════════ */
 'use strict';
 
-const APP = { tab: 'bourse', data: null, loading: false, lastUpdate: null, liveCount: 0 };
-
-const Config = {
-  get avKey()      { return localStorage.getItem('ms_av_key')      || ''; },
-  set avKey(v)     { localStorage.setItem('ms_av_key', v); },
-  get theme()      { return localStorage.getItem('ms_theme')      || 'dark'; },
-  set theme(v)     { localStorage.setItem('ms_theme', v); },
-  get backendUrl() { return localStorage.getItem('ms_backend_url') || ''; },
-  set backendUrl(v){ localStorage.setItem('ms_backend_url', v); },
+/* ── État global ─────────────────────────────────────────────────── */
+const APP = {
+  tab: 'bourse', data: null, loading: false,
+  lastUpdate: null, liveCount: 0,
+  history: {}, calendar: [],
+  compareMode: false, calendarOpen: false,
 };
 
-const gel  = id => document.getElementById(id);
-const html = (el, h) => { el.innerHTML = h; };
+/* ── Config (localStorage) ───────────────────────────────────────── */
+const Config = {
+  get avKey()         { return localStorage.getItem('ms_av_key')           || ''; },
+  set avKey(v)        { localStorage.setItem('ms_av_key', v); },
+  get theme()         { return localStorage.getItem('ms_theme')           || 'dark'; },
+  set theme(v)        { localStorage.setItem('ms_theme', v); },
+  get backendUrl()    { return localStorage.getItem('ms_backend_url')     || ''; },
+  set backendUrl(v)   { localStorage.setItem('ms_backend_url', v); },
+  get alertEmail()    { return localStorage.getItem('ms_alert_email')     || ''; },
+  set alertEmail(v)   { localStorage.setItem('ms_alert_email', v); },
+  get compareTab()    { return localStorage.getItem('ms_compare_tab')     || ''; },
+  set compareTab(v)   { localStorage.setItem('ms_compare_tab', v); },
+  get disabledGroups(){
+    try { return JSON.parse(localStorage.getItem('ms_disabled_groups') || '[]'); } catch { return []; }
+  },
+  set disabledGroups(v){ localStorage.setItem('ms_disabled_groups', JSON.stringify(v)); },
+};
+
+/* ── DOM helpers ─────────────────────────────────────────────────── */
+const gel  = id  => document.getElementById(id);
+const html = (el, h) => { if (el) el.innerHTML = h; };
 
 /* ══════════════════════════════════════════════════════════════════
    API MODULE
@@ -29,119 +39,78 @@ const html = (el, h) => { el.innerHTML = h; };
 const Api = {
   async get(url, label = '') {
     try {
-      const ctrl  = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 10000);
-      const res   = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
-      clearTimeout(timer);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (e) { console.warn(`[MarketSense] ${label} →`, e.message); return null; }
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 10000);
+      const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+      clearTimeout(t);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } catch (e) { console.warn(`[API] ${label}:`, e.message); return null; }
   },
-
   async cryptoFearGreed() {
     const d = await this.get('https://api.alternative.me/fng/?limit=1', 'FNG');
     return d?.data?.[0] ? { value: +d.data[0].value, label: d.data[0].value_classification } : null;
   },
-
   async cgGlobal() {
     const d = await this.get('https://api.coingecko.com/api/v3/global', 'CG Global');
     return d?.data ? { btcDom: d.data.market_cap_percentage.btc } : null;
   },
-
   async btcPrices(days = 365) {
     const d = await this.get(
       `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=daily`,
-      'BTC Prices'
-    );
+      'BTC Prices');
     return d?.prices ? d.prices.map(p => p[1]) : null;
   },
-
   async blockchainStats() {
     const d = await this.get('https://api.blockchain.info/stats', 'Blockchain');
     return d?.hash_rate ? { hashRate: d.hash_rate } : null;
   },
-
-  async backend() {
+  async backend(path = '/api/indicators') {
     const base = Config.backendUrl.replace(/\/$/, '');
     if (!base) return null;
-    return await this.get(`${base}/api/indicators`, 'Backend');
+    return await this.get(`${base}${path}`, 'Backend');
   },
-
-  /* Alpha Vantage — cache localStorage 24h pour préserver le quota */
-  _avRead(key) {
-    try {
-      const item = JSON.parse(localStorage.getItem(`ms_av_${key}`) || 'null');
-      if (!item || Date.now() - item.ts > 86_400_000) return null;
-      return item.data;
-    } catch { return null; }
-  },
-  _avWrite(key, data) {
-    try { localStorage.setItem(`ms_av_${key}`, JSON.stringify({ data, ts: Date.now() })); } catch {}
-  },
-
+  _avRead(k)    { try { const i = JSON.parse(localStorage.getItem(`ms_av_${k}`) || 'null'); return (!i || Date.now()-i.ts > 86400000) ? null : i.data; } catch { return null; } },
+  _avWrite(k,d) { try { localStorage.setItem(`ms_av_${k}`, JSON.stringify({data:d,ts:Date.now()})); } catch {} },
   async avRSI(symbol) {
     const c = this._avRead(`rsi_${symbol}`);
-    if (c !== null) { console.info(`[AV] RSI ${symbol} depuis cache 24h`); return c; }
+    if (c !== null) return c;
     if (!Config.avKey) return null;
-    const url = `https://www.alphavantage.co/query?function=RSI&symbol=${symbol}&interval=daily&time_period=14&series_type=close&apikey=${Config.avKey}`;
-    const d = await this.get(url, `AV RSI ${symbol}`);
-    const ana = d?.['Technical Analysis: RSI'];
-    if (!ana) return null;
-    const val = parseFloat(Object.values(ana)[0].RSI);
-    this._avWrite(`rsi_${symbol}`, val);
-    return val;
+    const d = await this.get(`https://www.alphavantage.co/query?function=RSI&symbol=${symbol}&interval=daily&time_period=14&series_type=close&apikey=${Config.avKey}`, `AV RSI ${symbol}`);
+    const a = d?.['Technical Analysis: RSI'];
+    if (!a) return null;
+    const v = parseFloat(Object.values(a)[0].RSI);
+    this._avWrite(`rsi_${symbol}`, v); return v;
   },
-
   async avMACD(symbol) {
     const c = this._avRead(`macd_${symbol}`);
-    if (c !== null) { console.info(`[AV] MACD ${symbol} depuis cache 24h`); return c; }
+    if (c !== null) return c;
     if (!Config.avKey) return null;
-    const url = `https://www.alphavantage.co/query?function=MACD&symbol=${symbol}&interval=daily&series_type=close&apikey=${Config.avKey}`;
-    const d = await this.get(url, `AV MACD ${symbol}`);
-    const ana = d?.['Technical Analysis: MACD'];
-    if (!ana) return null;
-    const lat = Object.values(ana)[0];
-    const val = { macd: parseFloat(lat.MACD), signal: parseFloat(lat.MACD_Signal) };
-    this._avWrite(`macd_${symbol}`, val);
-    return val;
+    const d = await this.get(`https://www.alphavantage.co/query?function=MACD&symbol=${symbol}&interval=daily&series_type=close&apikey=${Config.avKey}`, `AV MACD ${symbol}`);
+    const a = d?.['Technical Analysis: MACD'];
+    if (!a) return null;
+    const l = Object.values(a)[0];
+    const v = { macd: parseFloat(l.MACD), signal: parseFloat(l.MACD_Signal) };
+    this._avWrite(`macd_${symbol}`, v); return v;
   },
 };
 
-/* ══════════════════════════════════════════════════════════════════
-   CALCULS (client — pour la crypto uniquement)
-   ══════════════════════════════════════════════════════════════════ */
+/* ── Calculs crypto (client) ─────────────────────────────────────── */
 const Calc = {
-  rsi(prices, period = 14) {
-    if (!prices || prices.length < period + 1) return null;
-    let g = 0, l = 0;
-    for (let i = 1; i <= period; i++) { const d = prices[i] - prices[i-1]; d > 0 ? g += d : l -= d; }
-    let ag = g / period, al = l / period;
-    for (let i = period + 1; i < prices.length; i++) {
-      const d = prices[i] - prices[i-1];
-      ag = (ag * (period-1) + Math.max(0, d))  / period;
-      al = (al * (period-1) + Math.max(0,-d)) / period;
-    }
-    return al === 0 ? 100 : Math.round(100 - 100 / (1 + ag / al));
+  rsi(prices, p=14) {
+    if (!prices||prices.length<p+1) return null;
+    let g=0,l=0;
+    for(let i=1;i<=p;i++){const d=prices[i]-prices[i-1];d>0?g+=d:l-=d;}
+    let ag=g/p,al=l/p;
+    for(let i=p+1;i<prices.length;i++){const d=prices[i]-prices[i-1];ag=(ag*(p-1)+Math.max(0,d))/p;al=(al*(p-1)+Math.max(0,-d))/p;}
+    return al===0?100:Math.round(100-100/(1+ag/al));
   },
-  ema(prices, period) {
-    if (!prices || prices.length < period) return null;
-    const k = 2 / (period + 1);
-    let e = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
-    for (let i = period; i < prices.length; i++) e = prices[i] * k + e * (1 - k);
-    return e;
-  },
-  sma(prices, period) {
-    if (!prices || prices.length < period) return null;
-    const s = prices.slice(-period);
-    return s.reduce((a, b) => a + b, 0) / s.length;
-  },
-  macdSign(prices) {
-    const e12 = this.ema(prices, 12), e26 = this.ema(prices, 26);
-    return (e12 && e26) ? e12 - e26 : null;
-  },
-  norm(v, lo, hi) { return Math.min(100, Math.max(0, Math.round((v - lo) / (hi - lo) * 100))); },
-  rsiSig(v)  { return v < 35 ? 'buy' : v > 65 ? 'sell' : 'neutral'; },
-  fngSig(v)  { return v < 30 ? 'buy' : v > 70 ? 'sell' : 'neutral'; },
+  ema(prices,p){if(!prices||prices.length<p)return null;const k=2/(p+1);let e=prices.slice(0,p).reduce((a,b)=>a+b,0)/p;for(let i=p;i<prices.length;i++)e=prices[i]*k+e*(1-k);return e;},
+  sma(prices,p){if(!prices||prices.length<p)return null;const s=prices.slice(-p);return s.reduce((a,b)=>a+b,0)/s.length;},
+  macdSign(prices){const e12=this.ema(prices,12),e26=this.ema(prices,26);return(e12&&e26)?e12-e26:null;},
+  norm(v,lo,hi){return Math.min(100,Math.max(0,Math.round((v-lo)/(hi-lo)*100)));},
+  rsiSig(v){return v<35?'buy':v>65?'sell':'neutral';},
+  fngSig(v){return v<30?'buy':v>70?'sell':'neutral';},
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -337,21 +306,9 @@ function defaultData() {
 
   };
 }
-
 /* ══════════════════════════════════════════════════════════════════
    LIVE DATA UPDATER
    ══════════════════════════════════════════════════════════════════ */
-function findInd(groups, id) {
-  for (const g of groups) { const i = g.indicators.find(x => x.id === id); if (i) return i; }
-  return null;
-}
-function applyPatch(groups, id, patch) {
-  const ind = findInd(groups, id);
-  if (!ind) return false;
-  Object.assign(ind, patch, { source: 'live' });
-  return true;
-}
-
 async function fetchLiveData(data) {
   let live = 0;
 
@@ -469,423 +426,11 @@ async function fetchLiveData(data) {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   RECOMMANDATION
-   ══════════════════════════════════════════════════════════════════ */
-function computeReco(groups) {
-  let b = 0, s = 0, n = 0, t = 0, excluded = 0;
-  groups.forEach(g => g.indicators.forEach(i => {
-    if (i.source !== 'live') { excluded++; return; } // ignoré
-    t += i.w;
-    if (i.sig === 'buy') b += i.w; else if (i.sig === 'sell') s += i.w; else n += i.w;
-  }));
-  const bp = t ? Math.round(b/t*100) : 0;
-  const sp = t ? Math.round(s/t*100) : 0;
-  const np = 100 - bp - sp;
-  return { sig: bp >= 45 ? 'buy' : sp >= 35 ? 'sell' : 'neutral', bp, sp, np, excluded };
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   RENDU
-   ══════════════════════════════════════════════════════════════════ */
-const TABS = [
-  { id:'bourse',   label:'Bourse',             icon:'📈' },
-  { id:'crypto',   label:'Crypto',              icon:'₿'  },
-  { id:'matieres', label:'Matières premières',  icon:'🥇' },
-];
-const SIG  = { buy:'Achat', sell:'Vente', neutral:'Neutre' };
-const RECO = {
-  buy:     { arrow:'↑', label:'Acheter',  sub:'Signaux majoritairement haussiers' },
-  sell:    { arrow:'↓', label:'Vendre',   sub:'Signaux de distribution détectés'  },
-  neutral: { arrow:'—', label:'Attendre', sub:'Signaux mixtes, direction incertaine' },
-};
-const RECO_DESC = {
-  buy: {
-    bourse:   'Les indicateurs techniques et de valorisation sont alignés à la hausse. Moment favorable pour renforcer des positions.',
-    crypto:   'Métriques on-chain, cycle et technique pointent vers la hausse. Environnement favorable à l\'accumulation.',
-    matieres: 'Macro favorable, dollar faible, demande en hausse. Excellent profil risque/rendement sur les matières premières.',
-  },
-  sell: {
-    bourse:   'Valorisation excessive et surchauffe détectées. Prendre des bénéfices et réduire l\'exposition.',
-    crypto:   'Indicateurs de cycle en zone de distribution. Sécuriser des profits.',
-    matieres: 'Pression du dollar, ralentissement demande — réduire les positions.',
-  },
-  neutral: {
-    bourse:   'Signaux partagés — patience avant de renforcer.',
-    crypto:   'Indicateurs divergents — attendre une confirmation directionnelle.',
-    matieres: 'Contexte incertain — attendre de meilleures conditions d\'entrée.',
-  },
-};
-
-function renderTabs() {
-  html(gel('tabs'), TABS.map(t =>
-    `<button class="tab ${t.id===APP.tab?'active':''}" onclick="switchTab('${t.id}')">
-      <span class="tab-icon">${t.icon}</span>${t.label}</button>`).join(''));
-}
-
-function renderReco(groups) {
-  const r = computeReco(groups), R = RECO[r.sig];
-  const live = groups.flatMap(g => g.indicators).filter(i => i.source==='live').length;
-  html(gel('reco'), `
-    <div class="reco-card reco-${r.sig}">
-      <div class="reco-left">
-        <div class="reco-label">Recommandation globale</div>
-        <div class="reco-signal">${R.arrow} ${R.label}</div>
-        <div class="reco-sub">${R.sub}</div>
-      </div>
-      <div class="reco-mid">
-        ${[['Achat',r.bp,'buy'],['Vente',r.sp,'sell'],['Neutre',r.np,'neutral']].map(([l,p,c]) =>
-          `<div class="reco-row"><span class="reco-rl">${l}</span>
-           <div class="reco-track"><div class="reco-fill ${c}" style="width:${p}%"></div></div>
-           <span class="reco-pct">${p} %</span></div>`).join('')}
-        <div class="reco-live-count">${live} indicateur${live>1?'s':''} en temps réel${r.excluded ? ` · ${r.excluded} sim. exclus du calcul` : ''}</div>
-      </div>
-      <div class="reco-right"><p>${RECO_DESC[r.sig][APP.tab]}</p></div>
-    </div>`);
-}
-
-function renderIndicator(ind) {
-  const dots = [1,2,3].map(i => `<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
-  const isSim = ind.source !== 'live';
-
-  if (isSim) {
-    return `<div class="ind ind-sim">
-      <div class="ind-top">
-        <div class="ind-name-wrap">
-          <span class="ind-name">${ind.name}</span>
-          <span class="tag-sim">Non actualisé</span>
-        </div>
-        <span class="badge badge-${ind.sig}" style="opacity:.4">${SIG[ind.sig]}</span>
-      </div>
-      <div class="sim-warning">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        Donnée figée — exclue de la recommandation. Valeur du ${new Date().toLocaleDateString('fr-FR', {month:'long', year:'numeric'})}.
-      </div>
-      <div class="meter ind-sim-meter"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%;opacity:.3"></div></div>
-      <div class="ind-foot" style="opacity:.4">
-        <div class="weight">${dots}<span class="weight-label">Importance</span></div>
-        <span class="ind-val">${ind.raw}${ind.unit}</span>
-      </div>
-    </div>`;
-  }
-
-  const tag = '<span class="tag-live">Live</span>';
-  return `<div class="ind">
-    <div class="ind-top">
-      <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span>${tag}</div>
-      <span class="badge badge-${ind.sig}">${SIG[ind.sig]}</span>
-    </div>
-    <div class="ind-desc">${ind.desc}</div>
-    <div class="meter"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div></div>
-    <div class="ind-foot">
-      <div class="weight">${dots}<span class="weight-label">Importance</span></div>
-      <span class="ind-val">${ind.raw}${ind.unit}</span>
-    </div>
-  </div>`;
-}
-
-function renderContent() {
-  renderTabs(); renderReco(APP.data[APP.tab]);
-  html(gel('content'), APP.data[APP.tab].map(g =>
-    `<div class="section"><div class="section-title">${g.name}</div>
-     <div class="indicators">${g.indicators.map(renderIndicator).join('')}</div></div>`).join(''));
-}
-
-function setStatus(type, text) {
-  const dot = gel('status-dot'), txt = gel('status-text');
-  if (dot) dot.className = `status-dot ${type}`;
-  if (txt) txt.textContent = text;
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   CONTRÔLEUR
-   ══════════════════════════════════════════════════════════════════ */
-function switchTab(id) { APP.tab = id; renderContent(); }
-
-async function refresh() {
-  if (APP.loading) return;
-  APP.loading = true;
-  setStatus('loading', 'Actualisation…');
-  const btn = gel('refresh-btn');
-  if (btn) btn.style.opacity = '0.4';
-  try {
-    APP.data = await fetchLiveData(defaultData());
-    APP.lastUpdate = new Date();
-    const ts  = APP.lastUpdate.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-    const bk  = Config.backendUrl ? '· Backend ✓' : '· ⚠ Backend non configuré';
-    setStatus('live', `${ts} · ${APP.liveCount} live ${bk}`);
-    renderContent();
-  } catch (e) {
-    console.error('[MarketSense]', e);
-    setStatus('error', 'Erreur de chargement');
-  }
-  APP.loading = false;
-  if (btn) btn.style.opacity = '1';
-}
-
-function openSettings() {
-  gel('av-key').value      = Config.avKey;
-  gel('backend-url').value = Config.backendUrl;
-  gel('settings-overlay').style.display = 'block';
-  gel('settings-modal').style.display   = 'block';
-}
-function closeSettings() {
-  gel('settings-overlay').style.display = 'none';
-  gel('settings-modal').style.display   = 'none';
-}
-function saveSettings() {
-  Config.avKey      = gel('av-key').value.trim();
-  Config.backendUrl = gel('backend-url').value.trim().replace(/\/$/, '');
-  closeSettings(); refresh();
-}
-function toggleTheme() {
-  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next); Config.theme = next;
-  const moon = document.querySelector('.icon-moon'), sun = document.querySelector('.icon-sun');
-  if (moon && sun) { moon.style.display = next==='dark'?'':'none'; sun.style.display = next==='dark'?'none':''; }
-}
-
-/* ── Boot ───────────────────────────────────────────────────────── */
-(async function init() {
-  document.documentElement.setAttribute('data-theme', Config.theme);
-  const moon = document.querySelector('.icon-moon'), sun = document.querySelector('.icon-sun');
-  if (Config.theme === 'light' && moon && sun) { moon.style.display='none'; sun.style.display=''; }
-  APP.data = defaultData();
-  setStatus('loading', 'Connexion aux sources de données…');
-  renderContent();
-  await refresh();
-  setInterval(refresh, 5 * 60 * 1000);
-})();
-
-/* ══════════════════════════════════════════════════════════════════
-   NOUVELLES FONCTIONNALITÉS v3
-   ══════════════════════════════════════════════════════════════════ */
-
-/* ── Config étendue ─────────────────────────────────────────────── */
-Object.assign(Config, {
-  get alertEmail()    { return localStorage.getItem('ms_alert_email')  || ''; },
-  set alertEmail(v)   { localStorage.setItem('ms_alert_email', v); },
-  get disabledGroups(){ try { return JSON.parse(localStorage.getItem('ms_disabled_groups') || '[]'); } catch { return []; } },
-  set disabledGroups(v){ localStorage.setItem('ms_disabled_groups', JSON.stringify(v)); },
-  get compareTab()    { return localStorage.getItem('ms_compare_tab')  || ''; },
-  set compareTab(v)   { localStorage.setItem('ms_compare_tab', v); },
-});
-
-/* ── État étendu ─────────────────────────────────────────────────── */
-APP.history       = {};  // { bourse: [...], crypto: [...], matieres: [...] }
-APP.calendar      = [];
-APP.compareMode   = false;
-APP.calendarOpen  = false;
-
-/* ══════════════════════════════════════════════════════════════════
-   REPORTING SIGNAUX → BACKEND (alertes + historique)
-   ══════════════════════════════════════════════════════════════════ */
-async function reportSignals() {
-  const base = Config.backendUrl;
-  if (!base) return;
-  try {
-    const tabs = ['bourse', 'crypto', 'matieres'];
-    const body = {};
-    tabs.forEach(tab => {
-      const r = computeReco(APP.data[tab]);
-      body[tab]          = r.sig;
-      body[`${tab}_bp`]  = r.bp;
-      body[`${tab}_sp`]  = r.sp;
-    });
-    await fetch(`${base}/api/signals`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch (e) { console.warn('[signals]', e.message); }
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   HISTORIQUE DES SIGNAUX
-   ══════════════════════════════════════════════════════════════════ */
-async function loadHistory() {
-  const base = Config.backendUrl;
-  if (!base) return;
-  try {
-    const r = await fetch(`${base}/api/history?limit=60`);
-    if (!r.ok) return;
-    const data = await r.json();
-    // Reformat: { bourse: [{ts, sig, bp, sp}], ... }
-    const tabs = ['bourse', 'crypto', 'matieres'];
-    tabs.forEach(tab => {
-      APP.history[tab] = data.history
-        .filter(h => h[tab])
-        .map(h => ({ ts: h.ts, sig: h[tab].sig, bp: h[tab].bp, sp: h[tab].sp }));
-    });
-  } catch (e) { console.warn('[history]', e.message); }
-}
-
-function renderHistorySparkline(tab) {
-  const pts = (APP.history[tab] || []).slice(-30);
-  if (pts.length < 1) return '<div class="sparkline-empty">Historique en cours de constitution…</div>';
-  if (pts.length === 1) {
-    const col = pts[0].sig === 'buy' ? 'var(--green)' : pts[0].sig === 'sell' ? 'var(--red)' : 'var(--amber)';
-    return `<div class="sparkline-wrap"><span class="sparkline-label">1 pt</span><svg width="160" height="28" viewBox="0 0 160 28"><circle cx="80" cy="14" r="4" fill="${col}"/></svg></div>`;
-  }
-  const W = 160, H = 28, pad = 3;
-  const vals = pts.map(p => p.bp);
-  const mn = Math.min(...vals), mx = Math.max(...vals, mn + 1);
-  const x = i => pad + (i / (pts.length - 1)) * (W - 2 * pad);
-  const y = v => H - pad - ((v - mn) / (mx - mn)) * (H - 2 * pad);
-  const d = vals.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const last = pts[pts.length - 1];
-  const col = last.sig === 'buy' ? 'var(--green)' : last.sig === 'sell' ? 'var(--red)' : 'var(--amber)';
-  return `<div class="sparkline-wrap" title="Évolution du signal Achat% sur ${pts.length} points">
-    <span class="sparkline-label">${pts.length}pts</span>
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
-      <path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
-      <circle cx="${x(vals.length-1).toFixed(1)}" cy="${y(vals[vals.length-1]).toFixed(1)}" r="3" fill="${col}"/>
-    </svg>
-  </div>`;
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   CALENDRIER MACRO
-   ══════════════════════════════════════════════════════════════════ */
-async function loadCalendar() {
-  const base = Config.backendUrl;
-  if (!base) return;
-  try {
-    const r = await fetch(`${base}/api/calendar?days=90`);
-    if (!r.ok) return;
-    const data = await r.json();
-    APP.calendar = data.events || [];
-    renderCalendarBadge();
-  } catch (e) { console.warn('[calendar]', e.message); }
-}
-
-function renderCalendarBadge() {
-  const badge = gel('cal-badge');
-  if (badge && APP.calendar.length > 0) {
-    const soon = APP.calendar.filter(e => e.days_from_now <= 7).length;
-    badge.textContent = soon > 0 ? soon : '';
-    badge.style.display = soon > 0 ? 'flex' : 'none';
-  }
-}
-
-function toggleCalendar() {
-  APP.calendarOpen = !APP.calendarOpen;
-  const panel = gel('calendar-panel');
-  if (!panel) return;
-  if (APP.calendarOpen) {
-    renderCalendarPanel();
-    panel.classList.add('open');
-  } else {
-    panel.classList.remove('open');
-  }
-}
-
-function renderCalendarPanel() {
-  const panel = gel('calendar-panel');
-  if (!panel) return;
-  const CAT_ICON = { bourse: '📈', crypto: '₿', matieres: '🥇' };
-  const IMP_COLOR = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--text-3)' };
-  const today = new Date().toISOString().split('T')[0];
-
-  const items = APP.calendar.map(ev => {
-    const dDay = ev.days_from_now === 0 ? "Aujourd'hui" :
-                 ev.days_from_now === 1 ? "Demain" :
-                 `Dans ${ev.days_from_now}j`;
-    const urgency = ev.days_from_now <= 3 ? 'cal-urgent' : '';
-    return `<div class="cal-item ${urgency}">
-      <div class="cal-date">
-        <div class="cal-day">${new Date(ev.date + 'T12:00:00').toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</div>
-        <div class="cal-dday" style="color:${ev.days_from_now <= 7 ? 'var(--amber)' : 'var(--text-3)'}">${dDay}</div>
-      </div>
-      <div class="cal-info">
-        <div class="cal-event">${CAT_ICON[ev.category] || '📅'} ${ev.event}</div>
-        <div class="cal-impact" style="color:${IMP_COLOR[ev.impact] || 'var(--text-3)'}">
-          ${'●'.repeat(ev.impact === 'high' ? 3 : ev.impact === 'medium' ? 2 : 1)} ${ev.impact === 'high' ? 'Impact fort' : ev.impact === 'medium' ? 'Impact modéré' : 'Impact faible'}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  panel.innerHTML = `
-    <div class="cal-header">
-      <span class="cal-title">📅 Calendrier macro</span>
-      <button class="icon-btn" onclick="toggleCalendar()">✕</button>
-    </div>
-    <div class="cal-body">${items || '<p style="color:var(--text-3);padding:16px;text-align:center">Aucun événement à venir</p>'}</div>`;
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   TOOLTIPS — clic sur indicateur pour voir plus de détails
-   ══════════════════════════════════════════════════════════════════ */
-function openTooltip(indId) {
-  // Chercher l'indicateur dans toutes les données
-  let ind = null;
-  for (const tab of ['bourse', 'crypto', 'matieres']) {
-    for (const g of APP.data[tab]) {
-      const found = g.indicators.find(i => i.id === indId);
-      if (found) { ind = { ...found, group: g.name, tab }; break; }
-    }
-    if (ind) break;
-  }
-  if (!ind) return;
-
-  const SIG_COLOR = { buy: 'var(--green)', sell: 'var(--red)', neutral: 'var(--amber)' };
-  const SIG_LABEL = { buy: '↑ Signal d\'Achat', sell: '↓ Signal de Vente', neutral: '— Signal Neutre' };
-  const dots = [1,2,3].map(i => `<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
-
-  const overlay = gel('tooltip-overlay');
-  const modal   = gel('tooltip-modal');
-  if (!overlay || !modal) return;
-
-  modal.innerHTML = `
-    <div class="modal-header">
-      <div>
-        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">${ind.group}</div>
-        <h2 class="modal-title">${ind.name}</h2>
-      </div>
-      <button class="icon-btn" onclick="closeTooltip()">✕</button>
-    </div>
-    <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
-        <div class="badge badge-${ind.sig}" style="font-size:14px;padding:6px 16px">${SIG_LABEL[ind.sig]}</div>
-        <div style="font-size:22px;font-weight:600;color:var(--text-1)">${ind.raw}${ind.unit}</div>
-      </div>
-      <div class="meter" style="height:8px;margin-bottom:8px">
-        <div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3)">
-        <span>Survente / Bas</span><span>Zone neutre</span><span>Surachat / Haut</span>
-      </div>
-    </div>
-    <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:8px">Analyse</div>
-      <p style="font-size:14px;color:var(--text-2);line-height:1.7;margin:0">${ind.desc}</p>
-    </div>
-    <div style="padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Importance dans la recommandation</div>
-        <div class="weight">${dots}<span class="weight-label" style="margin-left:6px">${['','Faible','Modérée','Forte'][ind.w]}</span></div>
-      </div>
-      <div style="font-size:11px;color:var(--text-3);text-align:right">
-        Source<br><span style="color:${ind.source==='live'?'var(--green)':'var(--amber)'}">● ${ind.source==='live'?'Temps réel':'Donnée simulée'}</span>
-      </div>
-    </div>`;
-
-  overlay.style.display = 'block';
-  modal.style.display   = 'block';
-}
-
-function closeTooltip() {
-  gel('tooltip-overlay').style.display = 'none';
-  gel('tooltip-modal').style.display   = 'none';
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   GROUPES — activer / désactiver dans la recommandation
+   RECOMMANDATION + CONSTANTES UI
    ══════════════════════════════════════════════════════════════════ */
 function isGroupDisabled(tab, groupName) {
   return Config.disabledGroups.includes(`${tab}::${groupName}`);
 }
-
 function toggleGroupDisabled(tab, groupName) {
   const key = `${tab}::${groupName}`;
   const dis = Config.disabledGroups;
@@ -895,50 +440,71 @@ function toggleGroupDisabled(tab, groupName) {
   renderContent();
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   MODE COMPARAISON
-   ══════════════════════════════════════════════════════════════════ */
-function enterCompare(compareTabId) {
-  APP.compareMode = true;
-  Config.compareTab = compareTabId;
-  renderContent();
-}
-function exitCompare() {
-  APP.compareMode = false;
-  Config.compareTab = '';
-  renderContent();
+function computeReco(groups, tab) {
+  const activeTab = tab || APP.tab;
+  let b=0,s=0,n=0,t=0,excluded=0;
+  groups.forEach(g => {
+    const disabled = isGroupDisabled(activeTab, g.name);
+    g.indicators.forEach(i => {
+      if (i.source !== 'live' || disabled) { excluded++; return; }
+      t += i.w;
+      if (i.sig==='buy') b+=i.w; else if (i.sig==='sell') s+=i.w; else n+=i.w;
+    });
+  });
+  const bp = t ? Math.round(b/t*100) : 0;
+  const sp = t ? Math.round(s/t*100) : 0;
+  return { sig: bp>=45?'buy':sp>=35?'sell':'neutral', bp, sp, np:100-bp-sp, excluded };
 }
 
-function renderCompareSelector() {
-  const others = TABS.filter(t => t.id !== APP.tab);
-  return `<div class="compare-bar">
-    <span style="font-size:12px;color:var(--text-2)">Comparer avec :</span>
-    ${others.map(t => `<button class="compare-btn ${Config.compareTab===t.id&&APP.compareMode?'active':''}"
-      onclick="enterCompare('${t.id}')">${t.icon} ${t.label}</button>`).join('')}
-    ${APP.compareMode ? '<button class="compare-btn" onclick="exitCompare()">✕ Quitter</button>' : ''}
+const TABS = [
+  { id:'bourse',   label:'Bourse',            icon:'📈' },
+  { id:'crypto',   label:'Crypto',             icon:'₿'  },
+  { id:'matieres', label:'Matières premières', icon:'🥇' },
+];
+const SIG  = { buy:'Achat', sell:'Vente', neutral:'Neutre' };
+const RECO = {
+  buy:     { arrow:'↑', label:'Acheter',  sub:'Signaux majoritairement haussiers' },
+  sell:    { arrow:'↓', label:'Vendre',   sub:'Signaux de distribution détectés'  },
+  neutral: { arrow:'—', label:'Attendre', sub:'Signaux mixtes, direction incertaine' },
+};
+const RECO_DESC = {
+  buy:  { bourse:'Les indicateurs techniques et de valorisation sont alignés à la hausse. Moment favorable pour renforcer des positions.', crypto:'Métriques on-chain, cycle et technique pointent vers la hausse. Environnement favorable à l\'accumulation.', matieres:'Macro favorable, dollar faible, demande en hausse. Excellent profil risque/rendement sur les matières premières.' },
+  sell: { bourse:'Valorisation excessive et surchauffe détectées. Prendre des bénéfices et réduire l\'exposition.', crypto:'Indicateurs de cycle en zone de distribution. Sécuriser des profits.', matieres:'Pression du dollar, ralentissement demande — réduire les positions.' },
+  neutral: { bourse:'Signaux partagés — patience avant de renforcer.', crypto:'Indicateurs divergents — attendre une confirmation directionnelle.', matieres:'Contexte incertain — attendre de meilleures conditions d\'entrée.' },
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   RENDU — SPARKLINE HISTORIQUE
+   ══════════════════════════════════════════════════════════════════ */
+function renderHistorySparkline(tab) {
+  const pts = (APP.history[tab] || []).slice(-30);
+  if (pts.length === 0) return '<div class="sparkline-empty">Historique en cours de constitution…</div>';
+  if (pts.length === 1) {
+    const col = pts[0].sig==='buy'?'var(--green)':pts[0].sig==='sell'?'var(--red)':'var(--amber)';
+    return `<div class="sparkline-wrap"><span class="sparkline-label">1pt</span><svg width="160" height="28"><circle cx="80" cy="14" r="4" fill="${col}"/></svg></div>`;
+  }
+  const W=160,H=28,pad=3;
+  const vals = pts.map(p=>p.bp);
+  const mn=Math.min(...vals), mx=Math.max(...vals,mn+1);
+  const x=i=>pad+(i/(pts.length-1))*(W-2*pad);
+  const y=v=>H-pad-((v-mn)/(mx-mn))*(H-2*pad);
+  const d=vals.map((v,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const last=pts[pts.length-1];
+  const col=last.sig==='buy'?'var(--green)':last.sig==='sell'?'var(--red)':'var(--amber)';
+  return `<div class="sparkline-wrap" title="Évolution Achat% (${pts.length} points)">
+    <span class="sparkline-label">${pts.length}pts</span>
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+      <path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+      <circle cx="${x(vals.length-1).toFixed(1)}" cy="${y(vals[vals.length-1]).toFixed(1)}" r="3" fill="${col}"/>
+    </svg>
   </div>`;
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   EXPORT PDF
-   ══════════════════════════════════════════════════════════════════ */
-function exportPDF() {
-  document.title = `MarketSense — ${TABS.find(t=>t.id===APP.tab)?.label} — ${new Date().toLocaleDateString('fr-FR')}`;
-  window.print();
-  setTimeout(() => { document.title = 'MarketSense — Aide à l\'investissement'; }, 2000);
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   RÉÉCRITURE DES FONCTIONS DE RENDU
-   ══════════════════════════════════════════════════════════════════ */
-
-// Remplace renderReco pour inclure la sparkline
+/* ── Reco card ───────────────────────────────────────────────────── */
 function renderReco(groups) {
-  const r     = computeReco(groups, APP.tab);
-  const R     = RECO[r.sig];
-  const live  = groups.flatMap(g => g.indicators).filter(i => i.source==='live').length;
-  const spark = renderHistorySparkline(APP.tab);
-
+  const r=computeReco(groups), R=RECO[r.sig];
+  const live=groups.flatMap(g=>g.indicators).filter(i=>i.source==='live').length;
+  const spark=renderHistorySparkline(APP.tab);
   html(gel('reco'), `
     <div class="reco-card reco-${r.sig}">
       <div class="reco-left">
@@ -948,60 +514,35 @@ function renderReco(groups) {
         ${spark}
       </div>
       <div class="reco-mid">
-        ${[['Achat',r.bp,'buy'],['Vente',r.sp,'sell'],['Neutre',r.np,'neutral']].map(([l,p,c]) =>
+        ${[['Achat',r.bp,'buy'],['Vente',r.sp,'sell'],['Neutre',r.np,'neutral']].map(([l,p,c])=>
           `<div class="reco-row"><span class="reco-rl">${l}</span>
            <div class="reco-track"><div class="reco-fill ${c}" style="width:${p}%"></div></div>
            <span class="reco-pct">${p} %</span></div>`).join('')}
-        <div class="reco-live-count">${live} live${r.excluded ? ` · ${r.excluded} sim. exclus` : ''}</div>
+        <div class="reco-live-count">${live} live${r.excluded?` · ${r.excluded} sim. exclus`:''}</div>
       </div>
       <div class="reco-right"><p>${RECO_DESC[r.sig][APP.tab]}</p></div>
     </div>`);
 }
 
-// Remplace computeReco pour respecter les groupes désactivés
-const _computeRecoOrig = computeReco;
-function computeReco(groups, tab) {
-  const activeTab = tab || APP.tab;
-  let b = 0, s = 0, n = 0, t = 0, excluded = 0;
-  groups.forEach(g => {
-    const disabled = isGroupDisabled(activeTab, g.name);
-    g.indicators.forEach(i => {
-      if (i.source !== 'live' || disabled) { excluded++; return; }
-      t += i.w;
-      if (i.sig === 'buy') b += i.w; else if (i.sig === 'sell') s += i.w; else n += i.w;
-    });
-  });
-  const bp = t ? Math.round(b/t*100) : 0;
-  const sp = t ? Math.round(s/t*100) : 0;
-  const np = 100 - bp - sp;
-  return { sig: bp >= 45 ? 'buy' : sp >= 35 ? 'sell' : 'neutral', bp, sp, np, excluded };
-}
-
-// Remplace renderIndicator pour ajouter le tooltip au clic
+/* ── Indicateur card ─────────────────────────────────────────────── */
 function renderIndicator(ind) {
-  const dots  = [1,2,3].map(i => `<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
-  const isSim = ind.source !== 'live';
-  const click = `onclick="openTooltip('${ind.id}')" style="cursor:pointer" title="Cliquer pour les détails"`;
-
-  if (isSim) {
-    return `<div class="ind ind-sim" ${click}>
+  const dots=[1,2,3].map(i=>`<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
+  const clickAttr=`onclick="openTooltip('${ind.id}')" style="cursor:pointer"`;
+  if (ind.source !== 'live') {
+    return `<div class="ind ind-sim" ${clickAttr}>
       <div class="ind-top">
         <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span><span class="tag-sim">Non actualisé</span></div>
         <span class="badge badge-${ind.sig}" style="opacity:.4">${SIG[ind.sig]}</span>
       </div>
       <div class="sim-warning">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         Donnée figée — exclue de la recommandation.
       </div>
       <div class="meter"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%;opacity:.3"></div></div>
-      <div class="ind-foot" style="opacity:.4">
-        <div class="weight">${dots}<span class="weight-label">Importance</span></div>
-        <span class="ind-val">${ind.raw}${ind.unit}</span>
-      </div>
+      <div class="ind-foot" style="opacity:.4"><div class="weight">${dots}<span class="weight-label">Importance</span></div><span class="ind-val">${ind.raw}${ind.unit}</span></div>
     </div>`;
   }
-
-  return `<div class="ind ind-clickable" ${click}>
+  return `<div class="ind ind-clickable" ${clickAttr}>
     <div class="ind-top">
       <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span><span class="tag-live">Live</span></div>
       <div style="display:flex;align-items:center;gap:6px">
@@ -1011,391 +552,314 @@ function renderIndicator(ind) {
     </div>
     <div class="ind-desc">${ind.desc}</div>
     <div class="meter"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div></div>
-    <div class="ind-foot">
-      <div class="weight">${dots}<span class="weight-label">Importance</span></div>
-      <span class="ind-val">${ind.raw}${ind.unit}</span>
-    </div>
+    <div class="ind-foot"><div class="weight">${dots}<span class="weight-label">Importance</span></div><span class="ind-val">${ind.raw}${ind.unit}</span></div>
   </div>`;
 }
 
-// Remplace renderContent pour gérer la comparaison et les groupes désactivés
-function renderContent() {
-  renderTabs();
-  const groups = APP.data[APP.tab];
-  renderReco(groups);
+/* ── Barre de comparaison ────────────────────────────────────────── */
+function renderCompareSelector() {
+  const others = TABS.filter(t => t.id !== APP.tab);
+  return `<div class="compare-bar">
+    <span style="font-size:12px;color:var(--text-2)">Comparer :</span>
+    ${others.map(t=>`<button class="compare-btn ${Config.compareTab===t.id&&APP.compareMode?'active':''}" onclick="enterCompare('${t.id}')">${t.icon} ${t.label}</button>`).join('')}
+    ${APP.compareMode?'<button class="compare-btn" onclick="exitCompare()">✕ Quitter</button>':''}
+  </div>`;
+}
 
-  const renderGroups = (tabId, data) => data.map(g => {
+/* ── Groupes ─────────────────────────────────────────────────────── */
+function renderGroups(tabId, data) {
+  return data.map(g => {
     const disabled = isGroupDisabled(tabId, g.name);
-    return `<div class="section ${disabled ? 'section-disabled' : ''}">
+    const safeName = g.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<div class="section ${disabled?'section-disabled':''}">
       <div class="section-title">
         ${g.name}
-        <button class="group-toggle" onclick="toggleGroupDisabled('${tabId}','${g.name.replace(/'/g,"\\'")}')" title="${disabled ? 'Réactiver ce groupe' : 'Désactiver du calcul'}">
-          ${disabled ? '⊕' : '⊖'}
-        </button>
+        <button class="group-toggle" onclick="toggleGroupDisabled('${tabId}','${safeName}')" title="${disabled?'Réactiver':'Désactiver du calcul'}">${disabled?'⊕':'⊖'}</button>
       </div>
       <div class="indicators">${g.indicators.map(renderIndicator).join('')}</div>
     </div>`;
   }).join('');
-
-  if (APP.compareMode && Config.compareTab && Config.compareTab !== APP.tab) {
-    const compareGroups = APP.data[Config.compareTab];
-    const compareTab    = TABS.find(t => t.id === Config.compareTab);
-    const mainTab       = TABS.find(t => t.id === APP.tab);
-    html(gel('content'), `
-      ${renderCompareSelector()}
-      <div class="compare-grid">
-        <div class="compare-col">
-          <div class="compare-col-title">${mainTab?.icon} ${mainTab?.label}</div>
-          ${renderGroups(APP.tab, groups)}
-        </div>
-        <div class="compare-col">
-          <div class="compare-col-title">${compareTab?.icon} ${compareTab?.label}</div>
-          ${renderGroups(Config.compareTab, compareGroups)}
-        </div>
-      </div>`);
-  } else {
-    html(gel('content'), renderCompareSelector() + renderGroups(APP.tab, groups));
-  }
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   PARAMÈTRES ÉTENDUS
-   ══════════════════════════════════════════════════════════════════ */
-function openSettings() {
-  gel('av-key').value        = Config.avKey;
-  gel('backend-url').value   = Config.backendUrl;
-  const emailEl = gel('alert-email');
-  if (emailEl) emailEl.value = Config.alertEmail;
-  gel('settings-overlay').style.display = 'block';
-  gel('settings-modal').style.display   = 'block';
-}
-function saveSettings() {
-  Config.avKey       = (gel('av-key')?.value      || '').trim();
-  Config.backendUrl  = (gel('backend-url')?.value || '').trim().replace(/\/$/, '');
-  const emailEl      = gel('alert-email');
-  if (emailEl) Config.alertEmail = emailEl.value.trim();
-  closeSettings();
-  refresh();
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   REFRESH ÉTENDU
-   ══════════════════════════════════════════════════════════════════ */
-async function refresh() {
-  if (APP.loading) return;
-  APP.loading = true;
-  setStatus('loading', 'Actualisation…');
-  const btn = gel('refresh-btn');
-  if (btn) btn.style.opacity = '0.4';
+/* ── renderContent principal ─────────────────────────────────────── */
+function renderContent() {
   try {
-    APP.data = await fetchLiveData(defaultData());
-    APP.lastUpdate = new Date();
-    const ts = APP.lastUpdate.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-    const bk = Config.backendUrl ? '· Backend ✓' : '· ⚠ Backend non configuré';
-    setStatus('live', `${ts} · ${APP.liveCount} live ${bk}`);
-
-    // Nouvelles fonctions asynchrones en parallèle
-    await Promise.all([
-      reportSignals(),
-      loadHistory(),
-      loadCalendar(),
-    ]);
-
-    renderContent();
-  } catch (e) {
-    console.error('[MarketSense]', e);
-    setStatus('error', 'Erreur de chargement');
+    renderTabs();
+    const groups = APP.data ? APP.data[APP.tab] : null;
+    if (!groups) return;
+    renderReco(groups);
+    const bar = renderCompareSelector();
+    if (APP.compareMode && Config.compareTab && Config.compareTab !== APP.tab) {
+      const cGroups = APP.data[Config.compareTab];
+      const cTab    = TABS.find(t=>t.id===Config.compareTab);
+      const mTab    = TABS.find(t=>t.id===APP.tab);
+      html(gel('content'), bar + `<div class="compare-grid">
+        <div class="compare-col"><div class="compare-col-title">${mTab?.icon} ${mTab?.label}</div>${renderGroups(APP.tab, groups)}</div>
+        <div class="compare-col"><div class="compare-col-title">${cTab?.icon} ${cTab?.label}</div>${renderGroups(Config.compareTab, cGroups)}</div>
+      </div>`);
+    } else {
+      html(gel('content'), bar + renderGroups(APP.tab, groups));
+    }
+  } catch(e) {
+    console.error('[renderContent]', e);
+    // Fallback minimal sans risque d'erreur récursive
+    try {
+      const groups = APP.data?.[APP.tab] || [];
+      html(gel('content'), groups.map(g=>
+        `<div class="section"><div class="section-title">${g.name}</div>
+         <div class="indicators">${g.indicators.map(i=>`<div class="ind">
+           <div class="ind-top"><span class="ind-name">${i.name}</span><span class="badge badge-${i.sig}">${SIG[i.sig]}</span></div>
+           <div class="ind-desc">${i.desc}</div></div>`).join('')}</div></div>`).join(''));
+    } catch(_) {}
   }
-  APP.loading = false;
-  if (btn) btn.style.opacity = '1';
+}
+
+function renderTabs() {
+  html(gel('tabs'), TABS.map(t=>
+    `<button class="tab ${t.id===APP.tab?'active':''}" onclick="switchTab('${t.id}')">
+      <span class="tab-icon">${t.icon}</span>${t.label}</button>`).join(''));
+}
+
+function setStatus(type, text) {
+  const dot=gel('status-dot'), txt=gel('status-text');
+  if(dot) dot.className=`status-dot ${type}`;
+  if(txt) txt.textContent=text;
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   BOOT ÉTENDU
+   CALENDRIER MACRO
    ══════════════════════════════════════════════════════════════════ */
-(async function initV3() {
-  // Fonctions de fermeture globales
-  window.closeSettings = function() {
-    gel('settings-overlay').style.display = 'none';
-    gel('settings-modal').style.display   = 'none';
-  };
-})();
+async function loadCalendar() {
+  const base = Config.backendUrl.replace(/\/$/, '');
+  if (!base) return;
+  try {
+    const r = await fetch(`${base}/api/calendar?days=180`);
+    if (!r.ok) return;
+    const d = await r.json();
+    APP.calendar = d.events || [];
+    const badge = gel('cal-badge');
+    if (badge) {
+      const soon = APP.calendar.filter(e=>e.days_from_now<=7).length;
+      badge.textContent = soon > 0 ? soon : '';
+      badge.style.display = soon > 0 ? 'flex' : 'none';
+    }
+  } catch(e) { console.warn('[calendar]', e.message); }
+}
+
+function toggleCalendar() {
+  APP.calendarOpen = !APP.calendarOpen;
+  const panel = gel('calendar-panel');
+  if (!panel) return;
+  if (APP.calendarOpen) {
+    const CAT = {bourse:'📈',crypto:'₿',matieres:'🥇'};
+    const IMP = {high:'var(--red)',medium:'var(--amber)',low:'var(--text-3)'};
+    const items = APP.calendar.map(ev => {
+      const dDay = ev.days_from_now===0?"Aujourd'hui":ev.days_from_now===1?"Demain":`Dans ${ev.days_from_now}j`;
+      return `<div class="cal-item ${ev.days_from_now<=3?'cal-urgent':''}">
+        <div class="cal-date">
+          <div class="cal-day">${new Date(ev.date+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</div>
+          <div class="cal-dday" style="color:${ev.days_from_now<=7?'var(--amber)':'var(--text-3)'}">${dDay}</div>
+        </div>
+        <div class="cal-info">
+          <div class="cal-event">${CAT[ev.category]||'📅'} ${ev.event}</div>
+          <div class="cal-impact" style="color:${IMP[ev.impact]||'var(--text-3)'}">
+            ${'●'.repeat(ev.impact==='high'?3:ev.impact==='medium'?2:1)} ${ev.impact==='high'?'Impact fort':ev.impact==='medium'?'Impact modéré':'Impact faible'}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    panel.innerHTML = `
+      <div class="cal-header">
+        <span class="cal-title">📅 Calendrier macro — ${APP.calendar.length} événements</span>
+        <button class="icon-btn" onclick="toggleCalendar()">✕</button>
+      </div>
+      <div class="cal-body">${items||'<p style="color:var(--text-3);padding:20px;text-align:center">Aucun événement<br><small>Configurez le backend dans ⚙</small></p>'}</div>`;
+    panel.classList.add('open');
+  } else {
+    panel.classList.remove('open');
+  }
+}
 
 /* ══════════════════════════════════════════════════════════════════
-   EXPLICATIONS PÉDAGOGIQUES — INDICATOR_INFO
+   HISTORIQUE DES SIGNAUX
+   ══════════════════════════════════════════════════════════════════ */
+async function reportSignals() {
+  const base = Config.backendUrl.replace(/\/$/, '');
+  if (!base) return;
+  try {
+    const body = {};
+    ['bourse','crypto','matieres'].forEach(tab => {
+      if (!APP.data[tab]) return;
+      const r = computeReco(APP.data[tab], tab);
+      body[tab]=r.sig; body[`${tab}_bp`]=r.bp; body[`${tab}_sp`]=r.sp;
+    });
+    await fetch(`${base}/api/signals`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  } catch(e) { console.warn('[signals]', e.message); }
+}
+
+async function loadHistory() {
+  const base = Config.backendUrl.replace(/\/$/, '');
+  if (!base) return;
+  try {
+    const r = await fetch(`${base}/api/history?limit=60`);
+    if (!r.ok) return;
+    const d = await r.json();
+    ['bourse','crypto','matieres'].forEach(tab => {
+      APP.history[tab] = d.history.filter(h=>h[tab]).map(h=>({ts:h.ts,sig:h[tab].sig,bp:h[tab].bp,sp:h[tab].sp}));
+    });
+  } catch(e) { console.warn('[history]', e.message); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   TOOLTIP avec explications pédagogiques
    ══════════════════════════════════════════════════════════════════ */
 const INDICATOR_INFO = {
-  /* ── BOURSE ──────────────────────────────────────────────────── */
-  rsi_spx: {
-    what: "Le RSI (Relative Strength Index) mesure la vélocité et l'amplitude des variations de prix sur une fenêtre de 14 jours. Il oscille entre 0 et 100.",
-    why: "C'est l'un des indicateurs les plus utilisés par les traders professionnels depuis sa création. Il permet de détecter les excès de marché — moments où les investisseurs ont poussé le prix trop haut ou trop bas par rapport à la tendance réelle.",
-    how: "RSI < 30 : marché survendu, rebond probable. RSI > 70 : marché suracheté, correction possible. Zone 30-70 : momentum neutre. À noter : en tendance haussière forte, le RSI peut rester > 70 longuement sans correction.",
-    creator: "J. Welles Wilder Jr. (1978)",
-  },
-  macd_spx: {
-    what: "Le MACD est la différence entre la moyenne mobile exponentielle 12 jours et 26 jours. Une ligne de signal (EMA 9j du MACD) est tracée pour détecter les croisements.",
-    why: "Il combine tendance et momentum en un seul indicateur. Le croisement du MACD avec sa ligne de signal est l'un des signaux les plus fiables pour confirmer un retournement de tendance.",
-    how: "MACD au-dessus de la ligne de signal : tendance haussière confirmée. En dessous : tendance baissière. La divergence entre le MACD et le prix est particulièrement puissante pour anticiper les retournements.",
-    creator: "Gerald Appel (1979)",
-  },
-  vix: {
-    what: "Le VIX ('indice de la peur') mesure la volatilité implicite attendue du S&P 500 sur les 30 prochains jours, calculée à partir des prix des options.",
-    why: "Il reflète le niveau d'anxiété des investisseurs institutionnels. Un VIX élevé signale la panique — qui historiquement correspond à des points d'achat. Un VIX très bas signale la complaisance — qui précède souvent les chocs.",
-    how: "VIX < 15 : complaisance dangereuse. VIX 15-25 : conditions normales. VIX > 30 : peur élevée, opportunité contrariante. VIX > 40 : capitulation, points d'achat historiques majeurs (2008, 2020).",
-    creator: "CBOE (1993)",
-  },
-  cape: {
-    what: "Le Shiller CAPE (Cyclically Adjusted P/E) divise le cours du S&P 500 par la moyenne des bénéfices réels des 10 dernières années, lissant ainsi les cycles économiques.",
-    why: "Il corrige le biais des P/E traditionnels qui fluctuent selon les cycles de bénéfices. Shiller a démontré qu'un CAPE élevé prédit des rendements futurs plus faibles sur 10 ans — confirmé historiquement.",
-    how: "Moyenne historique ≈ 16-17x. CAPE > 30 : marchés chers, rendements futurs probablement faibles. CAPE > 40 : zone de bulle historique. CAPE < 12 : marchés bon marché. Attention : le CAPE peut rester élevé longtemps en période de taux bas.",
-    creator: "Robert Shiller, Université Yale (1988)",
-  },
-  fg_spx: {
-    what: "L'indice Fear & Greed de CNN agrège 7 indicateurs : momentum du marché, force des actions, largeur du marché, options Put/Call, junk bonds, demande de valeur refuge, volatilité.",
-    why: "Les marchés sont souvent irrationnels à court terme — la peur et la cupidité créent des extrêmes exploitables. 'Soyez avide quand les autres ont peur' (Warren Buffett). Cet indice quantifie ces extrêmes.",
-    how: "0-24 : Peur extrême → opportunité d'achat contrariante. 25-44 : Peur. 45-55 : Neutre. 56-74 : Cupidité → vigilance. 75-100 : Cupidité extrême → signal de prudence.",
-    creator: "CNN Money",
-  },
-  putcall: {
-    what: "Le ratio Put/Call compare le volume des options de vente (puts) au volume des options d'achat (calls). Un put donne le droit de vendre, un call le droit d'acheter.",
-    why: "Les options révèlent les anticipations des investisseurs institutionnels. Quand tout le monde achète des puts (protection à la baisse), c'est souvent un signal contrariant positif — la peur est déjà dans les prix.",
-    how: "Ratio > 1.0 : excès de puts, peur élevée → signal contrariant haussier. Ratio < 0.7 : excès de calls, euphorie → signal de prudence. Ratio ~0.85 : sentiment équilibré.",
-    creator: "CBOE",
-  },
-  bollinger: {
-    what: "Les bandes de Bollinger encadrent le cours avec deux bandes situées à 2 écarts-types de la moyenne mobile 20 jours. Environ 95% des prix restent dans les bandes.",
-    why: "Elles mesurent la volatilité relative du marché. Quand les bandes se resserrent (compression), un mouvement directionnel fort est imminent. Les touches de bandes extrêmes signalent des excès.",
-    how: "Prix proche de la bande haute (> 80%) : surachat technique. Prix proche de la bande basse (< 20%) : survente technique. Compression des bandes : mouvement imminent (direction indéterminée sans signal complémentaire).",
-    creator: "John Bollinger (1980s)",
-  },
-
-  /* ── CRYPTO — ON-CHAIN ───────────────────────────────────────── */
-  mvrv: {
-    what: "Le MVRV Z-Score compare la capitalisation boursière du Bitcoin (Market Value) à la valeur réalisée (coût d'acquisition moyen de tous les BTC en circulation). Le Z-Score normalise statistiquement cet écart.",
-    why: "C'est l'un des indicateurs on-chain les plus puissants pour identifier les zones de bulle et de capitulation. Il mesure si les holders sont globalement en profit (distribution) ou en perte (capitulation).",
-    how: "Z-Score > 7 : zone de vente historique (bulle). Z-Score 2-7 : optimisme/euphotie. Z-Score 0-2 : zone neutre. Z-Score < 0 : capitulation, opportunité d'achat historique majeure (BTC se négocie sous son coût de base).",
-    creator: "David Puell & Murad Mahmudov",
-  },
-  nupl: {
-    what: "Le NUPL (Net Unrealized Profit/Loss) mesure le pourcentage des détenteurs de Bitcoin actuellement en profit non réalisé, en valeur nette.",
-    why: "Il reflète directement le sentiment des holders à long terme. En période d'euphorie, presque tout le monde est en profit — ce qui crée une pression vendeuse latente. En capitulation, les pertes non réalisées élevées signalent un fond de marché.",
-    how: "< 0 : capitulation (holders en perte nette, fonds historiques). 0-0.25 : espoir/peur. 0.25-0.5 : optimisme. 0.5-0.75 : croyance/excitation. > 0.75 : euphorie (zone de distribution).",
-    creator: "Glassnode",
-  },
-  sopr: {
-    what: "Le SOPR (Spent Output Profit Ratio) mesure le ratio profit/perte des BTC déplacés chaque jour. Un SOPR > 1 signifie que les vendeurs vendent en profit.",
-    why: "Il capture le comportement réel des vendeurs. Quand le SOPR tombe sous 1, les détenteurs vendent à perte — phénomène rare qui correspond souvent à des capitulations et des fonds de marché.",
-    how: "SOPR > 1.14 : distributions importantes, vendeurs très profitables. SOPR ≈ 1 : équilibre sain. SOPR < 0.98 : capitulation, vendeurs en perte → opportunité historique. Rebond du SOPR depuis < 1 : signal de reprise.",
-    creator: "Renato Shirakashi (Glassnode)",
-  },
-  cdd: {
-    what: "Le CDD (Coin Days Destroyed) pondère les mouvements de BTC par leur ancienneté. 1 BTC immobile depuis 100 jours qui bouge = 100 'coin days destroyed'.",
-    why: "Il détecte le comportement des 'anciens holders' — les baleines et early adopters qui ont une forte conviction. Quand ils bougent leurs coins après de longues périodes, c'est souvent pour prendre des profits aux sommets.",
-    how: "CDD très élevé : les anciens holders distribuent → signal de sommet potentiel. CDD faible : les anciens holders conservent → comportement haussier. Les pics de CDD aux sommets de cycle sont remarquablement cohérents.",
-    creator: "Glassnode",
-  },
-  nvt: {
-    what: "Le NVT Signal (Network Value to Transactions) est le 'P/E du Bitcoin' : il compare la capitalisation boursière au volume de transactions sur la blockchain.",
-    why: "Si le réseau est fortement utilisé par rapport à sa valorisation, le NVT est bas → sous-évalué fondamentalement. Un NVT élevé signifie que le prix ne justifie pas l'activité réelle du réseau.",
-    how: "NVT < 50 : réseau activement utilisé, valeur fondamentale solide. NVT 50-150 : zone normale. NVT > 150 : réseau sous-utilisé vs capitalisation → surévaluation potentielle.",
-    creator: "Willy Woo",
-  },
-  picycle: {
-    what: "Le Pi Cycle Top utilise le croisement de la MM111 avec 2 fois la MM350. Ces nombres approximent le ratio Pi (π ≈ 3.14), d'où le nom.",
-    why: "Historiquement, ce croisement a prédit les 3 derniers sommets de cycle Bitcoin avec une précision remarquable (quelques jours d'écart). C'est un signal de fin de bull market particulièrement fiable.",
-    how: "Tant que MM111 < 2×MM350 : pas de signal de sommet, environnement favorable. Croisement (MM111 ≈ 2×MM350) : signal de sommet de cycle historique, réduction drastique d'exposition recommandée.",
-    creator: "Harold Christopher Burger",
-  },
-  puell: {
-    what: "Le Puell Multiple compare les revenus journaliers des mineurs (en USD) à leur moyenne sur 365 jours. Il mesure la profitabilité relative du minage.",
-    why: "Les mineurs sont des vendeurs naturels — ils doivent couvrir leurs coûts. Quand leurs revenus sont très élevés (Puell > 4), la pression vendeuse des mineurs est maximale. Quand ils vendent à perte (Puell < 0.5), le marché est proche d'un fond.",
-    how: "Puell > 4 : mineurs très profitables, distribution probable → zone de vente. Puell 0.5-4 : zone normale. Puell < 0.5 : mineurs en détresse → zone d'accumulation historique.",
-    creator: "David Puell",
-  },
-  rainbow: {
-    what: "Le Rainbow Chart modélise le prix de Bitcoin sur une régression logarithmique depuis sa création, entourée de 9 bandes colorées représentant les phases de cycle.",
-    why: "Bitcoin suit historiquement une croissance logarithmique avec des cycles de 4 ans. Ce modèle permet de visualiser où se situe le prix actuel dans ce cycle à très long terme.",
-    how: "Zones 1-2 (bleu) : achat exceptionnel. Zones 3-4 : accumulation. Zone 5 : conserver. Zones 6-7 : vigilance. Zones 8-9 (rouge) : vendre. Le modèle prédit une croissance continue à long terme mais avec des cycles.",
-    creator: "Über Holger (modèle log)",
-  },
-  mayer: {
-    what: "Le Mayer Multiple divise le cours actuel du Bitcoin par sa moyenne mobile 200 jours. C'est une mesure de l'écart entre le prix et sa tendance long terme.",
-    why: "La MM200 est la référence universelle de tendance long terme. Trace Mayer a calculé qu'un Mayer Multiple > 2.4 a historiquement correspondu aux zones de bulle, et < 1.0 aux opportunités d'accumulation exceptionnelles.",
-    how: "< 0.8 : prix sous la MM200, achat historique. 0.8-1.5 : zone neutre à favorable. 1.5-2.4 : prudence croissante. > 2.4 : zone de vente historique selon Trace Mayer. La moyenne de toutes les valeurs historiques est ≈ 1.34.",
-    creator: "Trace Mayer",
-  },
-  btcrsim: {
-    what: "Le RSI Mensuel de Bitcoin calcule le RSI sur les clôtures mensuelles plutôt que journalières, filtrant le bruit à court terme pour capturer les signaux de cycle.",
-    why: "C'est l'un des indicateurs les plus fiables pour identifier les sommets de cycle. Historiquement, chaque fois que le RSI mensuel BTC a dépassé 90, Bitcoin était proche d'un sommet majeur de plusieurs mois.",
-    how: "RSI mensuel > 90 : zone de sommet de cycle historique, réduction d'exposition majeure recommandée. RSI 70-90 : bull market avancé, vigilance. RSI 40-70 : zone saine. RSI < 40 : survente mensuelle, accumulation historique.",
-    creator: "Analyse technique classique",
-  },
-  hashrate: {
-    what: "Le Hash Rate mesure la puissance de calcul totale du réseau Bitcoin (en Exahash/seconde). Il reflète directement l'engagement financier des mineurs.",
-    why: "Les mineurs investissent des millions en matériel et énergie. Un Hash Rate en hausse signifie que les mineurs anticipent des prix futurs plus élevés. Un ATH du Hash Rate = confiance maximale des professionnels du secteur.",
-    how: "Hash Rate croissant = signal haussier (mineurs confiants). Hash Rate en baisse soudaine = capitulation des mineurs (souvent au fond des bear markets). La corrélation inverse entre Hash Rate bas et prix bas est une opportunité d'accumulation.",
-    creator: "Blockchain.info (données temps réel)",
-  },
-  cfg: {
-    what: "L'indice Crypto Fear & Greed d'Alternative.me agrège 5 facteurs : volatilité (25%), momentum/volume (25%), réseaux sociaux (15%), dominance Bitcoin (10%), tendances Google (10%), sondages (15%).",
-    why: "Les marchés crypto sont particulièrement sujets aux comportements irrationnels — FOMO (Fear Of Missing Out) et panique amplifient les mouvements. Cet indice quantifie ces extrêmes émotionnels pour les exploiter de manière contrariante.",
-    how: "0-24 : Peur extrême → accumulation historique. 25-49 : Peur. 50-74 : Cupidité. 75-100 : Cupidité extrême → zone de distribution. Stratégie: acheter dans la peur, vendre dans la cupidité.",
-    creator: "Alternative.me",
-  },
-  funding: {
-    what: "Le Funding Rate est le taux d'intérêt payé entre les détenteurs de positions longues et courtes sur les marchés de futures perpétuels (Binance, etc.). Il se rééquilibre toutes les 8h.",
-    why: "Il mesure l'excès spéculatif en temps réel. Quand les longs paient des taux élevés aux shorts (funding positif élevé), cela signifie que le marché est suracheté par les spéculateurs à effet de levier — source de liquidations en cascade.",
-    how: "Funding > 0.05%/8h : excès de longs, risque de liquidations haussières → prudence. Funding 0-0.05% : zone neutre. Funding négatif : excès de shorts, compression possible (short squeeze).",
-    creator: "BitMEX (pionnier), maintenant standard",
-  },
-
-  /* ── MATIÈRES PREMIÈRES ──────────────────────────────────────── */
-  dxy: {
-    what: "Le Dollar Index (DXY) mesure la valeur du dollar américain contre un panier de 6 devises majeures (EUR 57.6%, JPY 13.6%, GBP 11.9%, CAD 9.1%, SEK 4.2%, CHF 3.6%).",
-    why: "La quasi-totalité des matières premières est libellée en dollars. Un dollar fort rend les commodités plus chères pour les acheteurs étrangers → baisse de la demande → pression sur les prix. Relation inverse quasi-mécanique.",
-    how: "DXY en hausse : pression sur les matières premières. DXY en baisse : soutien structurel aux commodités. La MM200 du DXY est la frontière clé entre contexte favorable et défavorable.",
-    creator: "ICE Futures US (anciennement NYBOT)",
-  },
-  realrates: {
-    what: "Les taux réels sont les taux nominaux des obligations d'État à 10 ans MOINS le taux d'inflation anticipée. Les TIPS (Treasury Inflation-Protected Securities) les mesurent directement.",
-    why: "L'or ne génère pas de revenus. Son coût d'opportunité est directement lié aux taux réels : si les taux réels sont négatifs, détenir de l'or est rationnel vs les obligations. C'est le moteur principal du prix de l'or long terme.",
-    how: "Taux réels < 0% : environnement très favorable à l'or et aux actifs réels. Taux réels 0-1% : contexte neutre. Taux réels > 2% : pression sur l'or et les matières premières sans dividende. Chaque hausse de 1% des taux réels exerce une pression baissière d'environ 10-15% sur l'or.",
-    creator: "Réserve Fédérale / FRED",
-  },
-  goldsil: {
-    what: "Le ratio Or/Argent mesure combien d'onces d'argent sont nécessaires pour acheter une once d'or. Il fluctue entre ~40 et ~120 historiquement.",
-    why: "Historiquement, quand ce ratio est très élevé (> 80), l'argent est sous-évalué par rapport à l'or et tend à surperformer lors du prochain cycle haussier des métaux précieux. L'argent est plus volatil et amplifie les mouvements de l'or.",
-    how: "Ratio > 80 : l'argent est historiquement bon marché vs l'or → favoriser l'argent. Ratio 60-80 : zone normale. Ratio < 60 : l'argent est cher vs l'or. La moyenne historique longue est ~50-60. Un retour à la moyenne depuis 90+ implique +50% de performance relative de l'argent.",
-    creator: "Analyse historique des métaux précieux",
-  },
-  gold_oil_ratio: {
-    what: "Le ratio Or/Pétrole compare le prix de l'or au prix du pétrole WTI. Il indique combien de barils de pétrole peut acheter une once d'or.",
-    why: "C'est un puissant indicateur macroéconomique. En période de croissance économique forte, le pétrole s'apprécie plus que l'or (ratio bas). En récession ou déflation, l'or surperforme (ratio haut).",
-    how: "Ratio < 15 : économie en expansion, pétrole cher → favorable aux actifs risqués. Ratio 15-30 : contexte normal. Ratio > 30 : or très cher vs pétrole → signal de récession ou stress économique. Niveau record post-Covid : >100.",
-    creator: "Analyse macroéconomique",
-  },
-  platpall: {
-    what: "Le ratio Platine/Palladium compare les prix de ces deux métaux du groupe platine (PGM), tous deux utilisés principalement dans les convertisseurs catalytiques automobiles.",
-    why: "Historiquement, le platine se négociait à prime sur le palladium. Depuis 2018, le palladium l'a dépassé en raison de la demande des véhicules essence vs diesel. Une normalisation est anticipée avec la transition vers les véhicules électriques qui réduira la demande pour les deux.",
-    how: "Ratio < 1 (Pt < Pd) : platine à décote historique, potentiel de rattrapage. Ratio 1-1.5 : normalisation en cours. Ratio > 1.5 : platine à premium historique.",
-    creator: "London Platinum & Palladium Market",
-  },
+  rsi_spx:{what:"Le RSI mesure la vélocité des variations de prix sur 14 jours, de 0 à 100.",why:"Il permet de détecter les excès de marché. L'un des indicateurs les plus utilisés par les traders professionnels depuis 1978.",how:"< 30 : survendu, rebond probable. > 70 : suracheté, correction possible. Zone 30-70 : neutre.",creator:"J. Welles Wilder Jr. (1978)"},
+  macd_spx:{what:"Différence entre EMA 12j et EMA 26j. La ligne de signal est l'EMA 9j du MACD.",why:"Combine tendance et momentum. Le croisement avec sa ligne de signal est un des signaux de retournement les plus fiables.",how:"MACD > ligne signal : haussier. En dessous : baissier. La divergence MACD/prix anticipe les retournements.",creator:"Gerald Appel (1979)"},
+  vix:{what:"Mesure la volatilité implicite attendue du S&P 500 sur 30 jours, calculée sur les prix d'options.",why:"Reflète l'anxiété institutionnelle. Un VIX élevé = panique = opportunité contrariante. Un VIX bas = complaisance = danger.",how:"< 15 : complaisance. 15-25 : normal. > 30 : peur, opportunité contrariante. > 40 : capitulation, points d'achat historiques.",creator:"CBOE (1993)"},
+  cape:{what:"Divise le cours S&P 500 par la moyenne des bénéfices réels des 10 dernières années, éliminant les biais cycliques.",why:"Shiller a prouvé qu'un CAPE élevé prédit des rendements futurs faibles sur 10 ans. Confirmé historiquement.",how:"Moy. historique ~16x. > 30 : marchés chers. > 40 : bulle. < 12 : attractif. Peut rester élevé en période de taux bas.",creator:"Robert Shiller, Yale (1988)"},
+  fg_spx:{what:"Agrège 7 indicateurs CNN : momentum, force des actions, options Put/Call, junk bonds, demande de valeur refuge, volatilité.",why:"Quantifie l'irrationnalité du marché. 'Soyez avide quand les autres ont peur' (Buffett). Exploite les extrêmes émotionnels.",how:"0-24 : peur extrême → opportunité. 25-49 : peur. 50-74 : cupidité. 75-100 : cupidité extrême → prudence.",creator:"CNN Money"},
+  putcall:{what:"Compare le volume d'options Put (vente) aux options Call (achat).",why:"Les options révèlent les anticipations institutionnelles. Excès de puts = peur déjà dans les prix = signal contrariant positif.",how:"> 1.0 : excès de puts, haussier contrariant. < 0.7 : excès de calls, euphorie dangereuse. ~0.85 : équilibré.",creator:"CBOE"},
+  bollinger:{what:"Deux bandes à ±2 écarts-types de la MM20. 95% des prix restent dans les bandes.",why:"Mesurent la volatilité relative. La compression des bandes précède les grands mouvements directionnels.",how:"Position > 80% : surachat technique. < 20% : survente. Compression = mouvement fort imminent (direction inconnue).",creator:"John Bollinger (1980s)"},
+  mvrv:{what:"Compare la capitalisation BTC (Market Value) à la valeur réalisée (coût moyen de tous les BTC). Z-Score normalise l'écart.",why:"L'un des meilleurs indicateurs on-chain pour identifier bulles et capitulations. Mesure si les holders sont globalement en profit.",how:"Z > 7 : bulle (vente). Z 2-7 : optimisme. Z 0-2 : neutre. Z < 0 : capitulation, achat historique majeur.",creator:"David Puell & Murad Mahmudov"},
+  nupl:{what:"Mesure le pourcentage net de BTC en profit non réalisé parmi tous les détenteurs.",why:"En euphorie, tout le monde est en profit → pression vendeuse latente. En capitulation → signal de fond de marché.",how:"< 0 : capitulation. 0-0.25 : espoir. 0.25-0.5 : optimisme. 0.5-0.75 : excitation. > 0.75 : euphorie → distribuer.",creator:"Glassnode"},
+  sopr:{what:"Ratio profit/perte des BTC déplacés chaque jour. SOPR > 1 = vendeurs en profit.",why:"Quand SOPR < 1, les holders vendent à perte → capitulation → fond de marché historique.",how:"> 1.14 : distribution forte. ≈ 1 : équilibre sain. < 0.98 : capitulation → opportunité historique.",creator:"Renato Shirakashi / Glassnode"},
+  cdd:{what:"Pondère les mouvements BTC par leur ancienneté. 1 BTC immobile 100j qui bouge = 100 coin days destroyed.",why:"Détecte les 'anciens holders' (baleines, early adopters). Quand ils bougent après longtemps → souvent pour prendre profits aux sommets.",how:"CDD très élevé : anciens holders distribuent → sommet potentiel. Faible : ils conservent → signal haussier.",creator:"Glassnode"},
+  nvt:{what:"Network Value to Transactions. Le 'P/E du Bitcoin' : capitalisation / volume de transactions blockchain.",why:"Mesure si le réseau est correctement valorisé vs son activité réelle. NVT élevé = prix déconnecté de l'utilisation.",how:"< 50 : réseau activement utilisé, solide fondamentalement. 50-150 : normal. > 150 : surévaluation potentielle.",creator:"Willy Woo"},
+  picycle:{what:"Croisement MM111 avec 2×MM350. Ces nombres approximent π (Pi ≈ 3.14), d'où le nom.",why:"A prédit les 3 derniers sommets de cycle BTC avec une précision de quelques jours. Signal de fin de bull market.",how:"MM111 < 2×MM350 : pas de signal, favorable. Croisement : signal de sommet historique → réduire drastiquement l'exposition.",creator:"Harold Christopher Burger"},
+  puell:{what:"Compare les revenus journaliers des mineurs à leur moyenne 365j. Mesure la profitabilité relative du minage.",why:"Les mineurs sont des vendeurs naturels. Revenus très élevés → pression vendeuse max. Revenus très bas → fond de marché.",how:"> 4 : distribution (vente). 0.5-4 : normal. < 0.5 : mineurs en détresse → accumulation historique.",creator:"David Puell"},
+  rainbow:{what:"Modélise le prix BTC sur une régression logarithmique depuis 2009, avec 9 bandes de couleur.",why:"BTC suit une croissance logarithmique avec cycles de 4 ans. Visualise où le prix se situe dans le cycle long terme.",how:"Zones 1-2 (bleu) : achat exceptionnel. 3-4 : accumuler. 5 : conserver. 6-7 : vigilance. 8-9 (rouge) : vendre.",creator:"Über Holger (modèle log)"},
+  mayer:{what:"Prix BTC actuel divisé par sa MM200. Mesure l'écart entre le prix et sa tendance long terme.",why:"La MM200 est la référence universelle. Trace Mayer a calculé que > 2.4 correspond aux bulles, < 1.0 aux opportunités.",how:"< 0.8 : sous la MM200, achat historique. 0.8-1.5 : neutre. > 2.4 : zone de vente historique. Moyenne historique ≈ 1.34.",creator:"Trace Mayer"},
+  btcrsim:{what:"RSI calculé sur les clôtures mensuelles BTC plutôt que journalières.",why:"Filtre le bruit et capte les signaux de cycle. Historiquement, RSI mensuel > 90 = proche d'un sommet majeur.",how:"> 90 : sommet de cycle probable, réduire l'exposition. 70-90 : bull market avancé. 40-70 : sain. < 40 : survente mensuelle.",creator:"Analyse technique classique"},
+  hashrate:{what:"Puissance de calcul totale du réseau Bitcoin en Exahash/seconde.",why:"Les mineurs investissent des millions. Hash Rate en hausse = ils anticipent des prix futurs plus élevés. ATH Hash Rate = confiance professionnelle maximale.",how:"Croissant : signal haussier. Chute soudaine : capitulation des mineurs (souvent aux fonds de bear market).",creator:"Blockchain.info (temps réel)"},
+  cfg:{what:"Agrège 5 facteurs : volatilité (25%), momentum (25%), réseaux sociaux (15%), dominance BTC (10%), Google Trends (10%).",why:"Les marchés crypto amplifient peur et FOMO. Cet indice quantifie ces extrêmes émotionnels pour les exploiter de manière contrariante.",how:"0-24 : peur extrême → accumulation. 25-49 : peur. 50-74 : cupidité. 75-100 : cupidité extrême → distribuer.",creator:"Alternative.me"},
+  funding:{what:"Taux d'intérêt payé entre longs et courts sur les futures perpétuels, rééquilibré toutes les 8h.",why:"Mesure l'excès spéculatif en temps réel. Funding positif élevé = longs surpayent = risque de liquidations en cascade.",how:"> 0.05%/8h : excès de longs, prudence. 0-0.05% : neutre. Négatif : excès de shorts, compression possible.",creator:"BitMEX (pionnier, 2014)"},
+  dxy:{what:"Mesure le dollar contre 6 devises majeures (EUR 57.6%, JPY 13.6%, GBP 11.9%, CAD 9.1%, SEK 4.2%, CHF 3.6%).",why:"Les matières premières sont libellées en dollars. Dollar fort → commodités plus chères pour les acheteurs étrangers → baisse demande.",how:"DXY en hausse : pression sur les matières premières. En baisse : soutien structurel. MM200 = frontière clé.",creator:"ICE Futures US"},
+  realrates:{what:"Taux nominaux MOINS l'inflation anticipée. Mesuré directement par les TIPS (obligations indexées inflation).",why:"L'or ne génère pas de revenus. Son coût d'opportunité dépend des taux réels. Taux réels négatifs = détenir de l'or est rationnel.",how:"< 0% : très favorable à l'or. 0-1% : neutre. > 2% : pression sur l'or. Chaque +1% de taux réels = -10-15% sur l'or.",creator:"Réserve Fédérale / FRED"},
+  goldsil:{what:"Nombre d'onces d'argent pour acheter une once d'or. Fluctue entre ~40 et ~120 historiquement.",why:"Quand le ratio est élevé, l'argent est sous-évalué vs l'or et tend à surperformer lors du prochain cycle haussier.",how:"> 80 : argent bon marché, le favoriser. 60-80 : normal. < 60 : argent cher vs or. Moy. historique ~50-60.",creator:"Analyse historique des métaux"},
+  gold_oil_ratio:{what:"Prix de l'or divisé par le prix du pétrole WTI. Indique combien de barils achète une once d'or.",why:"Indicateur macroéconomique : en expansion, le pétrole s'apprécie plus (ratio bas). En récession, l'or surperforme (ratio haut).",how:"< 15 : expansion, favorable aux actifs risqués. 15-30 : normal. > 30 : stress économique ou récession.",creator:"Analyse macroéconomique"},
+  platpall:{what:"Compare Platine et Palladium, tous deux utilisés dans les convertisseurs catalytiques automobiles.",why:"Historiquement Pt > Pd. Depuis 2018 inversé (diesel→essence). La transition VE réduira les deux. Normalisations attendues.",how:"Ratio < 1 (Pt < Pd) : platine à décote historique, potentiel de rattrapage. > 1 : normalisation en cours.",creator:"London Platinum & Palladium Market"},
 };
 
-/* ══════════════════════════════════════════════════════════════════
-   TOOLTIP AMÉLIORÉ avec explications pédagogiques
-   ══════════════════════════════════════════════════════════════════ */
 function openTooltip(indId) {
   let ind = null;
-  for (const tab of ['bourse', 'crypto', 'matieres']) {
-    for (const g of (APP.data[tab] || [])) {
-      const found = g.indicators.find(i => i.id === indId);
-      if (found) { ind = { ...found, group: g.name, tab }; break; }
+  for (const tab of ['bourse','crypto','matieres']) {
+    for (const g of (APP.data?.[tab] || [])) {
+      const f = g.indicators.find(i=>i.id===indId);
+      if (f) { ind={...f,group:g.name,tab}; break; }
     }
     if (ind) break;
   }
   if (!ind) return;
-
-  const overlay = gel('tooltip-overlay');
-  const modal   = gel('tooltip-modal');
-  if (!overlay || !modal) return;
-
+  const overlay=gel('tooltip-overlay'), modal=gel('tooltip-modal');
+  if (!overlay||!modal) return;
   const info = INDICATOR_INFO[ind.id] || null;
-  const dots = [1,2,3].map(i => `<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
-  const SIG_LABEL = { buy:"↑ Signal d'Achat", sell:"↓ Signal de Vente", neutral:"— Signal Neutre" };
-  const col = { buy:'var(--green)', sell:'var(--red)', neutral:'var(--amber)' };
-
-  const educSection = info ? `
+  const dots = [1,2,3].map(i=>`<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
+  const SIG_LBL={buy:"↑ Achat",sell:"↓ Vente",neutral:"— Neutre"};
+  const SIG_COL={buy:'var(--green)',sell:'var(--red)',neutral:'var(--amber)'};
+  const educ = info ? `
     <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:12px">📚 Comprendre cet indicateur</div>
-
-      <div style="margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:4px">Qu'est-ce que c'est ?</div>
-        <p style="font-size:13px;color:var(--text-2);line-height:1.65;margin:0">${info.what}</p>
-      </div>
-
-      <div style="margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:4px">Pourquoi c'est pertinent ?</div>
-        <p style="font-size:13px;color:var(--text-2);line-height:1.65;margin:0">${info.why}</p>
-      </div>
-
-      <div style="padding:12px;background:var(--bg-panel);border-radius:var(--radius-sm);border:1px solid var(--border)">
-        <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:4px">🎯 Comment l'interpréter</div>
-        <p style="font-size:13px;color:var(--text-1);line-height:1.65;margin:0">${info.how}</p>
-      </div>
-
-      ${info.creator ? `<div style="margin-top:8px;font-size:11px;color:var(--text-3)">📖 Source : ${info.creator}</div>` : ''}
+      <div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:3px">Qu'est-ce que c'est ?</div><p style="font-size:13px;color:var(--text-2);line-height:1.65;margin:0">${info.what}</p></div>
+      <div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:3px">Pourquoi c'est pertinent ?</div><p style="font-size:13px;color:var(--text-2);line-height:1.65;margin:0">${info.why}</p></div>
+      <div style="padding:12px;background:var(--bg-panel);border-radius:var(--radius-sm);border:1px solid var(--border)"><div style="font-size:11px;font-weight:600;color:var(--text-1);margin-bottom:4px">🎯 Comment l'interpréter</div><p style="font-size:13px;color:var(--text-1);line-height:1.65;margin:0">${info.how}</p></div>
+      ${info.creator?`<div style="margin-top:8px;font-size:11px;color:var(--text-3)">📖 ${info.creator}</div>`:''}
     </div>` : '';
-
   modal.innerHTML = `
     <div class="modal-header">
-      <div>
-        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">${ind.group}</div>
-        <h2 class="modal-title">${ind.name}</h2>
-      </div>
+      <div><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">${ind.group}</div><h2 class="modal-title">${ind.name}</h2></div>
       <button class="icon-btn" onclick="closeTooltip()">✕</button>
     </div>
     <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
-        <div class="badge badge-${ind.sig}" style="font-size:13px;padding:5px 14px">${SIG_LABEL[ind.sig]}</div>
-        <div style="font-size:24px;font-weight:700;color:${col[ind.sig]}">${ind.raw}${ind.unit}</div>
+        <span class="badge badge-${ind.sig}" style="font-size:13px;padding:5px 14px">${SIG_LBL[ind.sig]}</span>
+        <span style="font-size:24px;font-weight:700;color:${SIG_COL[ind.sig]}">${ind.raw}${ind.unit}</span>
       </div>
-      <div class="meter" style="height:8px;margin-bottom:6px">
-        <div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-3)">
-        <span>Survente / Bas</span><span>Zone neutre</span><span>Surachat / Haut</span>
-      </div>
+      <div class="meter" style="height:8px;margin-bottom:6px"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-3)"><span>Survente</span><span>Neutre</span><span>Surachat</span></div>
       <p style="margin:12px 0 0;font-size:13px;color:var(--text-2);line-height:1.6">${ind.desc}</p>
     </div>
-    ${educSection}
+    ${educ}
     <div style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;background:var(--bg-panel)">
-      <div>
-        <div style="font-size:10px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em">Importance</div>
-        <div class="weight">${dots}<span class="weight-label" style="margin-left:6px">${['','Faible','Modérée','Forte'][ind.w]}</span></div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:10px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em">Source</div>
-        <span style="font-size:12px;color:${ind.source==='live'?'var(--green)':'var(--amber)'}">● ${ind.source==='live'?'Temps réel':'Donnée simulée'}</span>
-      </div>
+      <div><div style="font-size:10px;color:var(--text-3);margin-bottom:4px">Importance</div><div class="weight">${dots}<span class="weight-label" style="margin-left:6px">${['','Faible','Modérée','Forte'][ind.w]}</span></div></div>
+      <div style="text-align:right"><div style="font-size:10px;color:var(--text-3);margin-bottom:4px">Source</div><span style="font-size:12px;color:${ind.source==='live'?'var(--green)':'var(--amber)'}">● ${ind.source==='live'?'Temps réel':'Donnée simulée'}</span></div>
     </div>`;
-
-  overlay.style.display = 'block';
-  modal.style.display   = 'block';
-  modal.scrollTop = 0;
+  overlay.style.display='block'; modal.style.display='block'; modal.scrollTop=0;
+}
+function closeTooltip() {
+  const o=gel('tooltip-overlay'),m=gel('tooltip-modal');
+  if(o) o.style.display='none'; if(m) m.style.display='none';
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   FIX — ROBUSTESSE DU RENDU INITIAL
+   COMPARAISON + EXPORT + PARAMÈTRES + CONTRÔLEUR
    ══════════════════════════════════════════════════════════════════ */
-
-// Garde la renderContent safe contre les erreurs
-const _rcOrig = renderContent;
-function renderContent() {
-  try {
-    if (!APP.data) return;
-    // S'assurer que APP.history est toujours initialisé
-    if (!APP.history) APP.history = {};
-    _rcOrig();
-  } catch(e) {
-    console.error('[renderContent]', e);
-    try {
-      // Fallback minimal : afficher au moins les groupes bruts
-      const groups = APP.data[APP.tab] || [];
-      const content = gel('content');
-      if (content && groups.length) {
-        content.innerHTML = groups.map(g =>
-          `<div class="section">
-            <div class="section-title">${g.name}</div>
-            <div class="indicators">${g.indicators.map(i =>
-              `<div class="ind"><div class="ind-top">
-                <span class="ind-name">${i.name}</span>
-                <span class="badge badge-${i.sig}">${SIG[i.sig]}</span>
-              </div><div class="ind-desc">${i.desc}</div></div>`
-            ).join('')}</div>
-          </div>`
-        ).join('');
-      }
-    } catch(e2) { console.error('[renderContent fallback]', e2); }
-  }
+function enterCompare(id) { APP.compareMode=true; Config.compareTab=id; renderContent(); }
+function exitCompare()    { APP.compareMode=false; Config.compareTab=''; renderContent(); }
+function exportPDF() {
+  document.title=`MarketSense — ${TABS.find(t=>t.id===APP.tab)?.label} — ${new Date().toLocaleDateString('fr-FR')}`;
+  window.print();
+  setTimeout(()=>{ document.title='MarketSense — Aide à l\'investissement'; }, 2000);
 }
+function openSettings() {
+  const avEl=gel('av-key'),bkEl=gel('backend-url'),emEl=gel('alert-email');
+  if(avEl) avEl.value=Config.avKey;
+  if(bkEl) bkEl.value=Config.backendUrl;
+  if(emEl) emEl.value=Config.alertEmail;
+  gel('settings-overlay').style.display='block';
+  gel('settings-modal').style.display='block';
+}
+function closeSettings() {
+  gel('settings-overlay').style.display='none';
+  gel('settings-modal').style.display='none';
+}
+function saveSettings() {
+  Config.avKey     =(gel('av-key')?.value||'').trim();
+  Config.backendUrl=(gel('backend-url')?.value||'').trim().replace(/\/$/,'');
+  Config.alertEmail=(gel('alert-email')?.value||'').trim();
+  closeSettings(); refresh();
+}
+function toggleTheme() {
+  const next=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',next); Config.theme=next;
+  const moon=document.querySelector('.icon-moon'),sun=document.querySelector('.icon-sun');
+  if(moon&&sun){moon.style.display=next==='dark'?'':'none';sun.style.display=next==='dark'?'none':'';}
+}
+function switchTab(id) { APP.tab=id; renderContent(); }
+
+/* ── Refresh principal ───────────────────────────────────────────── */
+async function refresh() {
+  if (APP.loading) return;
+  APP.loading=true;
+  setStatus('loading','Actualisation…');
+  const btn=gel('refresh-btn');
+  if(btn) btn.style.opacity='0.4';
+  try {
+    APP.data=await fetchLiveData(defaultData());
+    APP.lastUpdate=new Date();
+    const ts=APP.lastUpdate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    const bk=Config.backendUrl?'· Backend ✓':'· ⚠ Backend non configuré';
+    setStatus('live',`${ts} · ${APP.liveCount} live ${bk}`);
+    await Promise.all([reportSignals(), loadHistory(), loadCalendar()]);
+    renderContent();
+  } catch(e) {
+    console.error('[refresh]',e);
+    setStatus('error','Erreur de chargement');
+    if(APP.data) renderContent(); // Afficher quand même les données existantes
+  }
+  APP.loading=false;
+  if(btn) btn.style.opacity='1';
+}
+
+/* ── Boot ────────────────────────────────────────────────────────── */
+(async function init() {
+  document.documentElement.setAttribute('data-theme', Config.theme);
+  const moon=document.querySelector('.icon-moon'),sun=document.querySelector('.icon-sun');
+  if(Config.theme==='light'&&moon&&sun){moon.style.display='none';sun.style.display='';}
+  APP.data=defaultData();
+  APP.history={};
+  setStatus('loading','Connexion aux sources de données…');
+  renderContent();            // Affichage immédiat avec données par défaut
+  await refresh();            // Puis enrichissement live
+  setInterval(refresh, 5*60*1000);
+})();
