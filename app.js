@@ -346,6 +346,8 @@ async function fetchLiveData(data) {
           try { if (applyPatch(groups, id, vals)) live++; } catch(_) {}
         }
       }
+      // Stocker les analytics du backend
+      if (backend.analytics) APP.analytics = backend.analytics;
     }
   } catch(e) { console.warn('[fetchLive] backend patch:', e.message); }
 
@@ -470,18 +472,37 @@ function toggleGroupDisabled(tab, groupName) {
 
 function computeReco(groups, tab) {
   const activeTab = tab || APP.tab;
-  let b=0,s=0,n=0,t=0,excluded=0;
+  let b=0, s=0, n=0, t=0, excluded=0, totalLive=0, aligned=0;
   groups.forEach(g => {
     const disabled = isGroupDisabled(activeTab, g.name);
     g.indicators.forEach(i => {
       if (i.source !== 'live' || disabled) { excluded++; return; }
+      totalLive++;
       t += i.w;
-      if (i.sig==='buy') b+=i.w; else if (i.sig==='sell') s+=i.w; else n+=i.w;
+      if (i.sig==='buy')       { b += i.w; }
+      else if (i.sig==='sell') { s += i.w; }
+      else                     { n += i.w; }
     });
   });
-  const bp = t ? Math.round(b/t*100) : 0;
-  const sp = t ? Math.round(s/t*100) : 0;
-  return { sig: bp>=45?'buy':sp>=35?'sell':'neutral', bp, sp, np:100-bp-sp, excluded };
+  const bp  = t ? Math.round(b/t*100) : 0;
+  const sp  = t ? Math.round(s/t*100) : 0;
+  const sig = bp>=45 ? 'buy' : sp>=35 ? 'sell' : 'neutral';
+
+  // Nombre d'indicateurs alignés avec le signal dominant
+  groups.forEach(g => {
+    if (isGroupDisabled(activeTab, g.name)) return;
+    g.indicators.forEach(i => {
+      if (i.source !== 'live') return;
+      if (i.sig === sig) aligned++;
+    });
+  });
+
+  // Score de confiance 0-100
+  const confidence = totalLive > 0 ? Math.round(aligned / totalLive * 100) : 0;
+  const confLabel  = confidence >= 75 ? 'Fort' : confidence >= 50 ? 'Modéré' : 'Faible';
+  const confColor  = confidence >= 75 ? 'var(--green)' : confidence >= 50 ? 'var(--amber)' : 'var(--red)';
+
+  return { sig, bp, sp, np:100-bp-sp, excluded, totalLive, aligned, confidence, confLabel, confColor };
 }
 
 const TABS = [
@@ -531,14 +552,37 @@ function renderHistorySparkline(tab) {
 /* ── Reco card ───────────────────────────────────────────────────── */
 function renderReco(groups) {
   const r=computeReco(groups), R=RECO[r.sig];
-  const live=groups.flatMap(g=>g.indicators).filter(i=>i.source==='live').length;
+  const live =groups.flatMap(g=>g.indicators).filter(i=>i.source==='live').length;
   const spark=renderHistorySparkline(APP.tab);
+
+  // Divergences détectées pour cet onglet
+  const divs = (APP.analytics?.divergences||[]).filter(d => {
+    if (APP.tab==='crypto') return ['Bitcoin','Ethereum','Solana'].includes(d.asset);
+    if (APP.tab==='bourse') return ['S&P 500'].includes(d.asset);
+    if (APP.tab==='matieres') return ['Or','Pétrole WTI','Cuivre'].includes(d.asset);
+    return false;
+  });
+  const divBanner = divs.length > 0 ? `
+    <div class="div-banner">
+      <span class="div-banner-icon">⚡</span>
+      <div>
+        <strong>${divs.length} divergence${divs.length>1?'s':''} détectée${divs.length>1?'s':''}</strong>
+        ${divs.map(d=>`<div class="div-item div-${d.type}">${d.desc}</div>`).join('')}
+      </div>
+    </div>` : '';
+
   html(gel('reco'), `
+    ${divBanner}
     <div class="reco-card reco-${r.sig}">
       <div class="reco-left">
         <div class="reco-label">Recommandation globale</div>
         <div class="reco-signal">${R.arrow} ${R.label}</div>
         <div class="reco-sub">${R.sub}</div>
+        <div class="conf-badge" style="border-color:${r.confColor}">
+          <span style="color:${r.confColor}">●</span>
+          Signal <strong style="color:${r.confColor}">${r.confLabel}</strong>
+          — ${r.aligned}/${r.totalLive} indicateurs alignés
+        </div>
         ${spark}
       </div>
       <div class="reco-mid">
@@ -657,6 +701,149 @@ function setStatus(type, text) {
 /* ══════════════════════════════════════════════════════════════════
    CALENDRIER MACRO
    ══════════════════════════════════════════════════════════════════ */
+APP.analytics  = null;
+APP.analyticsPanelOpen = false;
+
+async function loadAnalytics(data) {
+  if (!data?.analytics) return;
+  APP.analytics = data.analytics;
+}
+
+/* ── Panel Analytics ─────────────────────────────────────────────── */
+function toggleAnalytics() {
+  APP.analyticsPanelOpen = !APP.analyticsPanelOpen;
+  const panel = gel('analytics-panel');
+  if (!panel) return;
+  if (APP.analyticsPanelOpen) {
+    renderAnalyticsPanel();
+    panel.classList.add('open');
+  } else {
+    panel.classList.remove('open');
+  }
+}
+
+function renderAnalyticsPanel() {
+  const panel = gel('analytics-panel');
+  if (!panel || !APP.analytics) {
+    if (panel) panel.innerHTML = `
+      <div class="cal-header"><span class="cal-title">📊 Analyse avancée</span><button class="icon-btn" onclick="toggleAnalytics()">✕</button></div>
+      <div style="padding:32px;text-align:center;color:var(--text-3)">Données en cours de chargement…<br><small>Actualise la page pour déclencher le calcul.</small></div>`;
+    return;
+  }
+
+  const { correlations, divergences, backtest } = APP.analytics;
+
+  // ── Score de confiance global ───────────────────────────────────
+  const confScores = ['bourse','crypto','matieres'].map(tab => {
+    const r = computeReco(APP.data[tab], tab);
+    return `<div class="conf-card conf-${r.sig}">
+      <div class="conf-tab">${TABS.find(t=>t.id===tab)?.icon} ${TABS.find(t=>t.id===tab)?.label}</div>
+      <div class="conf-signal" style="color:${r.confColor}">${RECO[r.sig].arrow} ${RECO[r.sig].label}</div>
+      <div class="conf-score">
+        <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${r.confidence}%;background:${r.confColor}"></div></div>
+        <span style="color:${r.confColor};font-weight:600">${r.confLabel}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:4px">${r.aligned}/${r.totalLive} indicateurs alignés</div>
+    </div>`;
+  }).join('');
+
+  // ── Divergences ─────────────────────────────────────────────────
+  const divHtml = divergences.length > 0
+    ? divergences.map(d => `
+        <div class="div-row div-${d.type}">
+          <span class="div-icon">${d.type==='bullish'?'↑':'↓'}</span>
+          <div>
+            <strong>${d.asset}</strong>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px">${d.desc}</div>
+          </div>
+          <span class="badge badge-${d.sig}" style="flex-shrink:0">${d.type==='bullish'?'Achat potentiel':'Vente potentielle'}</span>
+        </div>`).join('')
+    : '<div style="padding:16px;color:var(--text-3);text-align:center;font-size:13px">Aucune divergence détectée actuellement.</div>';
+
+  // ── Matrice de corrélation ──────────────────────────────────────
+  let corrHtml = '<div style="padding:16px;color:var(--text-3);text-align:center">Non disponible</div>';
+  if (correlations?.assets?.length > 0) {
+    const { assets, matrix } = correlations;
+    const cellSize = Math.min(52, Math.floor(320 / assets.length));
+    const corrColor = v => {
+      const abs = Math.abs(v);
+      if (v > 0.7)  return '#1fd97e';
+      if (v > 0.3)  return '#4ade80';
+      if (v > 0)    return '#a7f3d0';
+      if (v > -0.3) return '#fca5a5';
+      if (v > -0.7) return '#f87171';
+      return '#ef4444';
+    };
+    const shortName = n => n.length > 6 ? n.slice(0,5)+'…' : n;
+    corrHtml = `<div style="overflow-x:auto;padding:4px">
+      <table class="corr-table">
+        <thead><tr><th></th>${assets.map(a=>`<th title="${a}">${shortName(a)}</th>`).join('')}</tr></thead>
+        <tbody>${matrix.map((row, i) =>
+          `<tr><td class="corr-label" title="${assets[i]}">${shortName(assets[i])}</td>
+          ${row.map((v, j) => i===j
+            ? `<td class="corr-cell" style="background:var(--bg-panel);color:var(--text-3)">—</td>`
+            : `<td class="corr-cell" style="background:${corrColor(v)}20;color:${corrColor(v)}" title="${assets[i]} / ${assets[j]}: ${v}">${v.toFixed(2)}</td>`
+          ).join('')}</tr>`
+        ).join('')}</tbody>
+      </table>
+      <div class="corr-legend">
+        <span style="color:#1fd97e">■ Forte corrélation positive</span>
+        <span style="color:var(--text-3)">■ Neutre</span>
+        <span style="color:#ef4444">■ Corrélation négative</span>
+      </div>
+    </div>`;
+  }
+
+  // ── Backtesting ─────────────────────────────────────────────────
+  const backHtml = backtest.length > 0
+    ? backtest.map(b => {
+        const col = b.direction==='buy'
+          ? (b.avg_90d > 0 ? 'var(--green)' : 'var(--red)')
+          : (b.avg_90d < 0 ? 'var(--green)' : 'var(--red)');
+        const mini = b.last_5.map(r =>
+          `<span style="color:${r>0?'var(--green)':'var(--red)'};">${r>0?'+':''}${r}%</span>`
+        ).join(' · ');
+        return `<div class="back-card">
+          <div class="back-header">
+            <span class="back-asset">${b.asset}</span>
+            <span class="back-signal">${b.signal}</span>
+            <span class="back-occ">${b.occurrences} fois</span>
+          </div>
+          <div class="back-stats">
+            <div class="back-stat"><div class="back-stat-val" style="color:${col}">${b.avg_90d>0?'+':''}${b.avg_90d}%</div><div class="back-stat-lbl">Rendement moyen 90j</div></div>
+            <div class="back-stat"><div class="back-stat-val" style="color:${b.win_rate>=60?'var(--green)':'var(--amber)'}">${b.win_rate}%</div><div class="back-stat-lbl">Taux de succès</div></div>
+          </div>
+          <div class="back-mini">Dernières occurrences : ${mini}</div>
+        </div>`;
+      }).join('')
+    : '<div style="padding:16px;color:var(--text-3);text-align:center;font-size:13px">Données insuffisantes pour le backtesting.</div>';
+
+  panel.innerHTML = `
+    <div class="cal-header">
+      <span class="cal-title">📊 Analyse avancée</span>
+      <button class="icon-btn" onclick="toggleAnalytics()">✕</button>
+    </div>
+    <div class="analytics-body">
+      <div class="analytics-section">
+        <div class="analytics-title">🎯 Score de confiance par onglet</div>
+        <div class="conf-grid">${confScores}</div>
+      </div>
+      <div class="analytics-section">
+        <div class="analytics-title">⚡ Divergences détectées (20 derniers jours)</div>
+        <div class="div-list">${divHtml}</div>
+      </div>
+      <div class="analytics-section">
+        <div class="analytics-title">🔗 Matrice de corrélation (rendements 1 an)</div>
+        ${corrHtml}
+      </div>
+      <div class="analytics-section">
+        <div class="analytics-title">📈 Backtesting RSI historique</div>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:12px">Performance observée 90 jours après chaque signal sur l'historique complet.</div>
+        <div class="back-grid">${backHtml}</div>
+      </div>
+    </div>`;
+}
+
 async function loadCalendar() {
   const base = BACKEND.replace(/\/$/, '');
   if (!base) return;
