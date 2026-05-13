@@ -267,26 +267,74 @@ function defaultData() {
     ],
     matieres: [
       { name: 'Macro & Dollar', indicators: [
-        { id:'dxy',       name:'Dollar Index (DXY)',     val:30, sig:'buy',     w:3, raw:'—',       unit:'',        source:'live',      desc:'DXY — chargement en cours via le backend.' },
-        { id:'realrates', name:'Taux réels (TIPS 10y)',  val:72, sig:'buy',     w:3, raw:'—',       unit:'',        source:'live',      desc:'Taux réels TIPS 10y (FRED) — chargement.' },
-        { id:'cpi',       name:'Inflation CPI (USA)',    val:62, sig:'buy',     w:2, raw:'—',       unit:'',        source:'live',      desc:'Inflation CPI annualisée (FRED) — chargement.' },
+        { id:'dxy',           name:'Dollar Index (DXY)',       val:30, sig:'buy',     w:3, raw:'—', unit:'',          source:'live',      desc:'DXY — chargement via le backend.' },
+        { id:'realrates',     name:'Taux réels (TIPS 10y)',    val:72, sig:'buy',     w:3, raw:'—', unit:'',          source:'live',      desc:'Taux réels TIPS 10y (FRED) — chargement.' },
+        { id:'cpi',           name:'Inflation CPI (USA)',      val:62, sig:'buy',     w:2, raw:'—', unit:'',          source:'live',      desc:'Inflation CPI annualisée (FRED) — chargement.' },
       ]},
-      { name: 'Or & Argent', indicators: [
-        { id:'goldrsi',   name:'RSI Or (14j)',           val:55, sig:'neutral', w:2, raw:'—',       unit:'',        source:'live',      desc:'RSI Or (GC=F) — chargement en cours.' },
-        { id:'goldsil',   name:'Ratio Or / Argent',      val:78, sig:'buy',     w:2, raw:'—',       unit:'',        source:'live',      desc:'Ratio Or/Argent (GC=F / SI=F) — chargement.' },
-        { id:'cbgold',    name:'Achats Banques Centrales',val:88, sig:'buy',    w:3, raw:'Records',  unit:'',        source:'simulated', desc:'Achats records banques centrales (WGC 2024). (données simulées)' },
+      { name: 'Or (GC=F)', indicators: [
+        { id:'rsi_gold',      name:'RSI Or (14j)',             val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Or — chargement.' },
+        { id:'macd_gold',     name:'MACD Or',                  val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD Or — chargement.' },
+        { id:'mm50_gold',     name:'Or vs MM50',               val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Or vs MM50 — tendance court terme.' },
+        { id:'mm200_gold',    name:'Or vs MM200',              val:50, sig:'neutral', w:3, raw:'—', unit:'',          source:'live', desc:'Or vs MM200 — tendance long terme.' },
+        { id:'perf1y_gold',   name:'Performance Or 1 an',      val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Performance Or sur 12 mois.' },
+        { id:'goldsil',       name:'Ratio Or / Argent',        val:78, sig:'buy',     w:2, raw:'—', unit:'',          source:'live', desc:'Ratio Or/Argent — moy. historique ~65:1.' },
+        { id:'cbgold',        name:'Achats Banques Centrales', val:88, sig:'buy',     w:3, raw:'Records', unit:'',    source:'simulated', desc:'Achats records banques centrales (WGC 2024). (données simulées)' },
       ]},
-      { name: 'Uranium & Nucléaire', indicators: [
-        { id:'uspot',     name:'Uranium (URA ETF)',      val:72, sig:'buy',     w:2, raw:'—',       unit:'',        source:'live',      desc:'URA ETF (proxy uranium) — chargement en cours.' },
-        { id:'ursi',      name:'RSI Uranium (14j)',      val:48, sig:'neutral', w:1, raw:'—',       unit:'',        source:'live',      desc:'RSI URA ETF — chargement en cours.' },
-        { id:'nuclear',   name:'Demande Nucléaire',      val:88, sig:'buy',     w:3, raw:'60+',     unit:' réacteurs', source:'simulated', desc:'60+ réacteurs en construction (WNA 2024). (données simulées)' },
+      { name: 'Argent (SI=F)', indicators: [
+        { id:'rsi_silver',    name:'RSI Argent (14j)',         val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Argent — chargement.' },
+        { id:'macd_silver',   name:'MACD Argent',              val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD Argent — chargement.' },
+        { id:'mm50_silver',   name:'Argent vs MM50',           val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Argent vs MM50 — tendance court terme.' },
+        { id:'mm200_silver',  name:'Argent vs MM200',          val:50, sig:'neutral', w:3, raw:'—', unit:'',          source:'live', desc:'Argent vs MM200 — tendance long terme.' },
+        { id:'perf1y_silver', name:'Performance Argent 1 an',  val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Performance Argent sur 12 mois.' },
       ]},
-      { name: 'Platine, Argent & Métaux', indicators: [
-        { id:'sivrsi',    name:'RSI Argent (14j)',       val:52, sig:'neutral', w:1, raw:'—',       unit:'',        source:'live',      desc:'RSI Argent (SI=F) — chargement en cours.' },
-        { id:'platpall',  name:'Platine vs Palladium',   val:76, sig:'buy',     w:2, raw:'—',       unit:'',        source:'live',      desc:'Prix Platine vs Palladium — chargement.' },
-        { id:'copper',    name:'Cuivre & Transition',    val:60, sig:'neutral', w:2, raw:'—',       unit:'',        source:'live',      desc:'RSI & prix Cuivre (HG=F) — chargement.' },
+      { name: 'Petrole & Energie', indicators: [
+        { id:'rsi_wti',       name:'RSI Petrole WTI (14j)',    val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Petrole WTI (CL=F) — chargement.' },
+        { id:'macd_wti',      name:'MACD WTI',                 val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD Petrole WTI — chargement.' },
+        { id:'mm50_wti',      name:'WTI vs MM50',              val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'WTI vs MM50 — tendance court terme.' },
+        { id:'mm200_wti',     name:'WTI vs MM200',             val:50, sig:'neutral', w:3, raw:'—', unit:'',          source:'live', desc:'WTI vs MM200 — tendance long terme.' },
+        { id:'perf1y_wti',    name:'Performance WTI 1 an',     val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Performance WTI sur 12 mois.' },
+        { id:'rsi_brent',     name:'RSI Brent (14j)',          val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Petrole Brent (BZ=F) — chargement.' },
+        { id:'macd_brent',    name:'MACD Brent',               val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD Brent — chargement.' },
+        { id:'mm200_brent',   name:'Brent vs MM200',           val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'Brent vs MM200 — tendance long terme.' },
+        { id:'rsi_ng',        name:'RSI Gaz Naturel (14j)',    val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'RSI Gaz Naturel (NG=F) — chargement.' },
+        { id:'macd_ng',       name:'MACD Gaz Naturel',         val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'MACD Gaz Naturel — chargement.' },
+        { id:'mm200_ng',      name:'Gaz Naturel vs MM200',     val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'Gaz Naturel vs MM200 — tendance long terme.' },
+        { id:'gold_oil_ratio',name:'Ratio Or / Petrole',       val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'Ratio Or/Petrole — signal macro (> 30 = deflationniste).' },
+      ]},
+      { name: 'Uranium & Nucleaire', indicators: [
+        { id:'rsi_ura',       name:'RSI URA ETF (14j)',        val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Uranium ETF (URA) — chargement.' },
+        { id:'macd_ura',      name:'MACD URA',                 val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD URA ETF — chargement.' },
+        { id:'mm200_ura',     name:'URA vs MM200',             val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'URA vs MM200 — tendance long terme.' },
+        { id:'perf1y_ura',    name:'Performance URA 1 an',     val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Performance URA ETF sur 12 mois.' },
+        { id:'rsi_urnm',      name:'RSI URNM (14j)',           val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Sprott Uranium Miners ETF (URNM) — chargement.' },
+        { id:'macd_urnm',     name:'MACD URNM',                val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD URNM — chargement.' },
+        { id:'mm200_urnm',    name:'URNM vs MM200',            val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'URNM vs MM200 — tendance long terme.' },
+        { id:'rsi_ccj',       name:'RSI Cameco CCJ (14j)',     val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Cameco Corp (CCJ) — plus grand producteur mondial.' },
+        { id:'macd_ccj',      name:'MACD Cameco',              val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD Cameco — chargement.' },
+        { id:'mm200_ccj',     name:'Cameco vs MM200',          val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'Cameco vs MM200 — tendance long terme.' },
+        { id:'nuclear',       name:'Demande Nucleaire',        val:88, sig:'buy',     w:3, raw:'60+', unit:' reacteurs', source:'simulated', desc:'60+ reacteurs en construction mondiale. (donnees simulees)' },
+      ]},
+      { name: 'Platine & Palladium', indicators: [
+        { id:'rsi_platinum',  name:'RSI Platine (14j)',        val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Platine (PL=F) — chargement.' },
+        { id:'macd_platinum', name:'MACD Platine',             val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD Platine — chargement.' },
+        { id:'mm200_platinum',name:'Platine vs MM200',         val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'Platine vs MM200 — tendance long terme.' },
+        { id:'perf1y_platinum',name:'Perf Platine 1 an',      val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Performance Platine sur 12 mois.' },
+        { id:'rsi_palladium', name:'RSI Palladium (14j)',      val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'RSI Palladium (PA=F) — chargement.' },
+        { id:'mm200_palladium',name:'Palladium vs MM200',      val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Palladium vs MM200 — tendance long terme.' },
+        { id:'platpall',      name:'Ratio Platine / Palladium',val:76, sig:'buy',     w:2, raw:'—', unit:'',          source:'live', desc:'Ratio Platine vs Palladium — chargement.' },
+      ]},
+      { name: 'Metaux Industriels', indicators: [
+        { id:'rsi_copper',    name:'RSI Cuivre (14j)',         val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'RSI Cuivre (HG=F) — chargement.' },
+        { id:'macd_copper',   name:'MACD Cuivre',              val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'MACD Cuivre — chargement.' },
+        { id:'mm50_copper',   name:'Cuivre vs MM50',           val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Cuivre vs MM50 — tendance court terme.' },
+        { id:'mm200_copper',  name:'Cuivre vs MM200',          val:50, sig:'neutral', w:3, raw:'—', unit:'',          source:'live', desc:'Cuivre vs MM200 — thermometre de la croissance mondiale.' },
+        { id:'perf1y_copper', name:'Perf Cuivre 1 an',        val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'Performance Cuivre sur 12 mois.' },
+        { id:'rsi_alum',      name:'RSI Aluminium (14j)',      val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'RSI Aluminium (ALI=F) — chargement.' },
+        { id:'macd_alum',     name:'MACD Aluminium',           val:50, sig:'neutral', w:1, raw:'—', unit:'',          source:'live', desc:'MACD Aluminium — chargement.' },
+        { id:'mm200_alum',    name:'Aluminium vs MM200',       val:50, sig:'neutral', w:2, raw:'—', unit:'',          source:'live', desc:'Aluminium vs MM200 — tendance long terme.' },
       ]},
     ],
+
   };
 }
 
@@ -606,4 +654,462 @@ function toggleTheme() {
   renderContent();
   await refresh();
   setInterval(refresh, 5 * 60 * 1000);
+})();
+
+/* ══════════════════════════════════════════════════════════════════
+   NOUVELLES FONCTIONNALITÉS v3
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Config étendue ─────────────────────────────────────────────── */
+Object.assign(Config, {
+  get alertEmail()    { return localStorage.getItem('ms_alert_email')  || ''; },
+  set alertEmail(v)   { localStorage.setItem('ms_alert_email', v); },
+  get disabledGroups(){ try { return JSON.parse(localStorage.getItem('ms_disabled_groups') || '[]'); } catch { return []; } },
+  set disabledGroups(v){ localStorage.setItem('ms_disabled_groups', JSON.stringify(v)); },
+  get compareTab()    { return localStorage.getItem('ms_compare_tab')  || ''; },
+  set compareTab(v)   { localStorage.setItem('ms_compare_tab', v); },
+});
+
+/* ── État étendu ─────────────────────────────────────────────────── */
+APP.history       = {};  // { bourse: [...], crypto: [...], matieres: [...] }
+APP.calendar      = [];
+APP.compareMode   = false;
+APP.calendarOpen  = false;
+
+/* ══════════════════════════════════════════════════════════════════
+   REPORTING SIGNAUX → BACKEND (alertes + historique)
+   ══════════════════════════════════════════════════════════════════ */
+async function reportSignals() {
+  const base = Config.backendUrl;
+  if (!base) return;
+  try {
+    const tabs = ['bourse', 'crypto', 'matieres'];
+    const body = {};
+    tabs.forEach(tab => {
+      const r = computeReco(APP.data[tab]);
+      body[tab]          = r.sig;
+      body[`${tab}_bp`]  = r.bp;
+      body[`${tab}_sp`]  = r.sp;
+    });
+    await fetch(`${base}/api/signals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) { console.warn('[signals]', e.message); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   HISTORIQUE DES SIGNAUX
+   ══════════════════════════════════════════════════════════════════ */
+async function loadHistory() {
+  const base = Config.backendUrl;
+  if (!base) return;
+  try {
+    const r = await fetch(`${base}/api/history?limit=60`);
+    if (!r.ok) return;
+    const data = await r.json();
+    // Reformat: { bourse: [{ts, sig, bp, sp}], ... }
+    const tabs = ['bourse', 'crypto', 'matieres'];
+    tabs.forEach(tab => {
+      APP.history[tab] = data.history
+        .filter(h => h[tab])
+        .map(h => ({ ts: h.ts, sig: h[tab].sig, bp: h[tab].bp, sp: h[tab].sp }));
+    });
+  } catch (e) { console.warn('[history]', e.message); }
+}
+
+function renderHistorySparkline(tab) {
+  const pts = (APP.history[tab] || []).slice(-30);
+  if (pts.length < 3) return '';
+  const W = 160, H = 28, pad = 2;
+  const vals = pts.map(p => p.bp);
+  const mn = Math.min(...vals), mx = Math.max(...vals) || 100;
+  const x = (i) => pad + (i / (pts.length - 1)) * (W - 2 * pad);
+  const y = (v) => H - pad - ((v - mn) / (mx - mn || 1)) * (H - 2 * pad);
+  const d = vals.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const last = pts[pts.length - 1];
+  const col = last.sig === 'buy' ? 'var(--green)' : last.sig === 'sell' ? 'var(--red)' : 'var(--amber)';
+  return `<div class="sparkline-wrap" title="Évolution du signal Achat% sur 30 jours">
+    <span class="sparkline-label">30j</span>
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+      <path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+      <circle cx="${x(vals.length-1).toFixed(1)}" cy="${y(vals[vals.length-1]).toFixed(1)}" r="3" fill="${col}"/>
+    </svg>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CALENDRIER MACRO
+   ══════════════════════════════════════════════════════════════════ */
+async function loadCalendar() {
+  const base = Config.backendUrl;
+  if (!base) return;
+  try {
+    const r = await fetch(`${base}/api/calendar?days=90`);
+    if (!r.ok) return;
+    const data = await r.json();
+    APP.calendar = data.events || [];
+    renderCalendarBadge();
+  } catch (e) { console.warn('[calendar]', e.message); }
+}
+
+function renderCalendarBadge() {
+  const badge = gel('cal-badge');
+  if (badge && APP.calendar.length > 0) {
+    const soon = APP.calendar.filter(e => e.days_from_now <= 7).length;
+    badge.textContent = soon > 0 ? soon : '';
+    badge.style.display = soon > 0 ? 'flex' : 'none';
+  }
+}
+
+function toggleCalendar() {
+  APP.calendarOpen = !APP.calendarOpen;
+  const panel = gel('calendar-panel');
+  if (!panel) return;
+  if (APP.calendarOpen) {
+    renderCalendarPanel();
+    panel.classList.add('open');
+  } else {
+    panel.classList.remove('open');
+  }
+}
+
+function renderCalendarPanel() {
+  const panel = gel('calendar-panel');
+  if (!panel) return;
+  const CAT_ICON = { bourse: '📈', crypto: '₿', matieres: '🥇' };
+  const IMP_COLOR = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--text-3)' };
+  const today = new Date().toISOString().split('T')[0];
+
+  const items = APP.calendar.map(ev => {
+    const dDay = ev.days_from_now === 0 ? "Aujourd'hui" :
+                 ev.days_from_now === 1 ? "Demain" :
+                 `Dans ${ev.days_from_now}j`;
+    const urgency = ev.days_from_now <= 3 ? 'cal-urgent' : '';
+    return `<div class="cal-item ${urgency}">
+      <div class="cal-date">
+        <div class="cal-day">${new Date(ev.date + 'T12:00:00').toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</div>
+        <div class="cal-dday" style="color:${ev.days_from_now <= 7 ? 'var(--amber)' : 'var(--text-3)'}">${dDay}</div>
+      </div>
+      <div class="cal-info">
+        <div class="cal-event">${CAT_ICON[ev.category] || '📅'} ${ev.event}</div>
+        <div class="cal-impact" style="color:${IMP_COLOR[ev.impact] || 'var(--text-3)'}">
+          ${'●'.repeat(ev.impact === 'high' ? 3 : ev.impact === 'medium' ? 2 : 1)} ${ev.impact === 'high' ? 'Impact fort' : ev.impact === 'medium' ? 'Impact modéré' : 'Impact faible'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="cal-header">
+      <span class="cal-title">📅 Calendrier macro</span>
+      <button class="icon-btn" onclick="toggleCalendar()">✕</button>
+    </div>
+    <div class="cal-body">${items || '<p style="color:var(--text-3);padding:16px;text-align:center">Aucun événement à venir</p>'}</div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   TOOLTIPS — clic sur indicateur pour voir plus de détails
+   ══════════════════════════════════════════════════════════════════ */
+function openTooltip(indId) {
+  // Chercher l'indicateur dans toutes les données
+  let ind = null;
+  for (const tab of ['bourse', 'crypto', 'matieres']) {
+    for (const g of APP.data[tab]) {
+      const found = g.indicators.find(i => i.id === indId);
+      if (found) { ind = { ...found, group: g.name, tab }; break; }
+    }
+    if (ind) break;
+  }
+  if (!ind) return;
+
+  const SIG_COLOR = { buy: 'var(--green)', sell: 'var(--red)', neutral: 'var(--amber)' };
+  const SIG_LABEL = { buy: '↑ Signal d\'Achat', sell: '↓ Signal de Vente', neutral: '— Signal Neutre' };
+  const dots = [1,2,3].map(i => `<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
+
+  const overlay = gel('tooltip-overlay');
+  const modal   = gel('tooltip-modal');
+  if (!overlay || !modal) return;
+
+  modal.innerHTML = `
+    <div class="modal-header">
+      <div>
+        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">${ind.group}</div>
+        <h2 class="modal-title">${ind.name}</h2>
+      </div>
+      <button class="icon-btn" onclick="closeTooltip()">✕</button>
+    </div>
+    <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+        <div class="badge badge-${ind.sig}" style="font-size:14px;padding:6px 16px">${SIG_LABEL[ind.sig]}</div>
+        <div style="font-size:22px;font-weight:600;color:var(--text-1)">${ind.raw}${ind.unit}</div>
+      </div>
+      <div class="meter" style="height:8px;margin-bottom:8px">
+        <div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3)">
+        <span>Survente / Bas</span><span>Zone neutre</span><span>Surachat / Haut</span>
+      </div>
+    </div>
+    <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:8px">Analyse</div>
+      <p style="font-size:14px;color:var(--text-2);line-height:1.7;margin:0">${ind.desc}</p>
+    </div>
+    <div style="padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px">Importance dans la recommandation</div>
+        <div class="weight">${dots}<span class="weight-label" style="margin-left:6px">${['','Faible','Modérée','Forte'][ind.w]}</span></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);text-align:right">
+        Source<br><span style="color:${ind.source==='live'?'var(--green)':'var(--amber)'}">● ${ind.source==='live'?'Temps réel':'Donnée simulée'}</span>
+      </div>
+    </div>`;
+
+  overlay.style.display = 'block';
+  modal.style.display   = 'block';
+}
+
+function closeTooltip() {
+  gel('tooltip-overlay').style.display = 'none';
+  gel('tooltip-modal').style.display   = 'none';
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   GROUPES — activer / désactiver dans la recommandation
+   ══════════════════════════════════════════════════════════════════ */
+function isGroupDisabled(tab, groupName) {
+  return Config.disabledGroups.includes(`${tab}::${groupName}`);
+}
+
+function toggleGroupDisabled(tab, groupName) {
+  const key = `${tab}::${groupName}`;
+  const dis = Config.disabledGroups;
+  const idx = dis.indexOf(key);
+  if (idx >= 0) dis.splice(idx, 1); else dis.push(key);
+  Config.disabledGroups = dis;
+  renderContent();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MODE COMPARAISON
+   ══════════════════════════════════════════════════════════════════ */
+function enterCompare(compareTabId) {
+  APP.compareMode = true;
+  Config.compareTab = compareTabId;
+  renderContent();
+}
+function exitCompare() {
+  APP.compareMode = false;
+  Config.compareTab = '';
+  renderContent();
+}
+
+function renderCompareSelector() {
+  const others = TABS.filter(t => t.id !== APP.tab);
+  return `<div class="compare-bar">
+    <span style="font-size:12px;color:var(--text-2)">Comparer avec :</span>
+    ${others.map(t => `<button class="compare-btn ${Config.compareTab===t.id&&APP.compareMode?'active':''}"
+      onclick="enterCompare('${t.id}')">${t.icon} ${t.label}</button>`).join('')}
+    ${APP.compareMode ? '<button class="compare-btn" onclick="exitCompare()">✕ Quitter</button>' : ''}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   EXPORT PDF
+   ══════════════════════════════════════════════════════════════════ */
+function exportPDF() {
+  document.title = `MarketSense — ${TABS.find(t=>t.id===APP.tab)?.label} — ${new Date().toLocaleDateString('fr-FR')}`;
+  window.print();
+  setTimeout(() => { document.title = 'MarketSense — Aide à l\'investissement'; }, 2000);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RÉÉCRITURE DES FONCTIONS DE RENDU
+   ══════════════════════════════════════════════════════════════════ */
+
+// Remplace renderReco pour inclure la sparkline
+function renderReco(groups) {
+  const r     = computeReco(groups, APP.tab);
+  const R     = RECO[r.sig];
+  const live  = groups.flatMap(g => g.indicators).filter(i => i.source==='live').length;
+  const spark = renderHistorySparkline(APP.tab);
+
+  html(gel('reco'), `
+    <div class="reco-card reco-${r.sig}">
+      <div class="reco-left">
+        <div class="reco-label">Recommandation globale</div>
+        <div class="reco-signal">${R.arrow} ${R.label}</div>
+        <div class="reco-sub">${R.sub}</div>
+        ${spark}
+      </div>
+      <div class="reco-mid">
+        ${[['Achat',r.bp,'buy'],['Vente',r.sp,'sell'],['Neutre',r.np,'neutral']].map(([l,p,c]) =>
+          `<div class="reco-row"><span class="reco-rl">${l}</span>
+           <div class="reco-track"><div class="reco-fill ${c}" style="width:${p}%"></div></div>
+           <span class="reco-pct">${p} %</span></div>`).join('')}
+        <div class="reco-live-count">${live} live${r.excluded ? ` · ${r.excluded} sim. exclus` : ''}</div>
+      </div>
+      <div class="reco-right"><p>${RECO_DESC[r.sig][APP.tab]}</p></div>
+    </div>`);
+}
+
+// Remplace computeReco pour respecter les groupes désactivés
+const _computeRecoOrig = computeReco;
+function computeReco(groups, tab) {
+  const activeTab = tab || APP.tab;
+  let b = 0, s = 0, n = 0, t = 0, excluded = 0;
+  groups.forEach(g => {
+    const disabled = isGroupDisabled(activeTab, g.name);
+    g.indicators.forEach(i => {
+      if (i.source !== 'live' || disabled) { excluded++; return; }
+      t += i.w;
+      if (i.sig === 'buy') b += i.w; else if (i.sig === 'sell') s += i.w; else n += i.w;
+    });
+  });
+  const bp = t ? Math.round(b/t*100) : 0;
+  const sp = t ? Math.round(s/t*100) : 0;
+  const np = 100 - bp - sp;
+  return { sig: bp >= 45 ? 'buy' : sp >= 35 ? 'sell' : 'neutral', bp, sp, np, excluded };
+}
+
+// Remplace renderIndicator pour ajouter le tooltip au clic
+function renderIndicator(ind) {
+  const dots  = [1,2,3].map(i => `<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
+  const isSim = ind.source !== 'live';
+  const click = `onclick="openTooltip('${ind.id}')" style="cursor:pointer" title="Cliquer pour les détails"`;
+
+  if (isSim) {
+    return `<div class="ind ind-sim" ${click}>
+      <div class="ind-top">
+        <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span><span class="tag-sim">Non actualisé</span></div>
+        <span class="badge badge-${ind.sig}" style="opacity:.4">${SIG[ind.sig]}</span>
+      </div>
+      <div class="sim-warning">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Donnée figée — exclue de la recommandation.
+      </div>
+      <div class="meter"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%;opacity:.3"></div></div>
+      <div class="ind-foot" style="opacity:.4">
+        <div class="weight">${dots}<span class="weight-label">Importance</span></div>
+        <span class="ind-val">${ind.raw}${ind.unit}</span>
+      </div>
+    </div>`;
+  }
+
+  return `<div class="ind" ${click}>
+    <div class="ind-top">
+      <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span><span class="tag-live">Live</span></div>
+      <span class="badge badge-${ind.sig}">${SIG[ind.sig]}</span>
+    </div>
+    <div class="ind-desc">${ind.desc}</div>
+    <div class="meter"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div></div>
+    <div class="ind-foot">
+      <div class="weight">${dots}<span class="weight-label">Importance</span></div>
+      <span class="ind-val">${ind.raw}${ind.unit}</span>
+    </div>
+  </div>`;
+}
+
+// Remplace renderContent pour gérer la comparaison et les groupes désactivés
+function renderContent() {
+  renderTabs();
+  const groups = APP.data[APP.tab];
+  renderReco(groups);
+
+  const renderGroups = (tabId, data) => data.map(g => {
+    const disabled = isGroupDisabled(tabId, g.name);
+    return `<div class="section ${disabled ? 'section-disabled' : ''}">
+      <div class="section-title">
+        ${g.name}
+        <button class="group-toggle" onclick="toggleGroupDisabled('${tabId}','${g.name.replace(/'/g,"\\'")}')" title="${disabled ? 'Réactiver ce groupe' : 'Désactiver du calcul'}">
+          ${disabled ? '⊕' : '⊖'}
+        </button>
+      </div>
+      <div class="indicators">${g.indicators.map(renderIndicator).join('')}</div>
+    </div>`;
+  }).join('');
+
+  if (APP.compareMode && Config.compareTab && Config.compareTab !== APP.tab) {
+    const compareGroups = APP.data[Config.compareTab];
+    const compareTab    = TABS.find(t => t.id === Config.compareTab);
+    const mainTab       = TABS.find(t => t.id === APP.tab);
+    html(gel('content'), `
+      ${renderCompareSelector()}
+      <div class="compare-grid">
+        <div class="compare-col">
+          <div class="compare-col-title">${mainTab?.icon} ${mainTab?.label}</div>
+          ${renderGroups(APP.tab, groups)}
+        </div>
+        <div class="compare-col">
+          <div class="compare-col-title">${compareTab?.icon} ${compareTab?.label}</div>
+          ${renderGroups(Config.compareTab, compareGroups)}
+        </div>
+      </div>`);
+  } else {
+    html(gel('content'), renderCompareSelector() + renderGroups(APP.tab, groups));
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PARAMÈTRES ÉTENDUS
+   ══════════════════════════════════════════════════════════════════ */
+function openSettings() {
+  gel('av-key').value        = Config.avKey;
+  gel('backend-url').value   = Config.backendUrl;
+  const emailEl = gel('alert-email');
+  if (emailEl) emailEl.value = Config.alertEmail;
+  gel('settings-overlay').style.display = 'block';
+  gel('settings-modal').style.display   = 'block';
+}
+function saveSettings() {
+  Config.avKey       = (gel('av-key')?.value      || '').trim();
+  Config.backendUrl  = (gel('backend-url')?.value || '').trim().replace(/\/$/, '');
+  const emailEl      = gel('alert-email');
+  if (emailEl) Config.alertEmail = emailEl.value.trim();
+  closeSettings();
+  refresh();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   REFRESH ÉTENDU
+   ══════════════════════════════════════════════════════════════════ */
+async function refresh() {
+  if (APP.loading) return;
+  APP.loading = true;
+  setStatus('loading', 'Actualisation…');
+  const btn = gel('refresh-btn');
+  if (btn) btn.style.opacity = '0.4';
+  try {
+    APP.data = await fetchLiveData(defaultData());
+    APP.lastUpdate = new Date();
+    const ts = APP.lastUpdate.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    const bk = Config.backendUrl ? '· Backend ✓' : '· ⚠ Backend non configuré';
+    setStatus('live', `${ts} · ${APP.liveCount} live ${bk}`);
+
+    // Nouvelles fonctions asynchrones en parallèle
+    await Promise.all([
+      reportSignals(),
+      loadHistory(),
+      loadCalendar(),
+    ]);
+
+    renderContent();
+  } catch (e) {
+    console.error('[MarketSense]', e);
+    setStatus('error', 'Erreur de chargement');
+  }
+  APP.loading = false;
+  if (btn) btn.style.opacity = '1';
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BOOT ÉTENDU
+   ══════════════════════════════════════════════════════════════════ */
+(async function initV3() {
+  // Fonctions de fermeture globales
+  window.closeSettings = function() {
+    gel('settings-overlay').style.display = 'none';
+    gel('settings-modal').style.display   = 'none';
+  };
 })();
