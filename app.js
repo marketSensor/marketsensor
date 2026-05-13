@@ -198,6 +198,7 @@ function defaultData() {
         { id:'mm200_paasi', name:'PAASI vs MM200',       val:50, sig:'neutral', w:3, raw:'—', unit:'', source:'live', desc:'PAASI vs moyenne mobile 200j — tendance long terme Asie.' },
         { id:'stoch_paasi', name:'Stochastique PAASI',   val:50, sig:'neutral', w:1, raw:'—', unit:'', source:'live', desc:'Stochastique PAASI — chargement via le backend.' },
       ]},
+      { name: 'Valorisation', indicators: [
         { id:'cape',      name:'Shiller CAPE',           val:22, sig:'sell',    w:3, raw:'—',       unit:'x',       source:'live',      desc:'Shiller CAPE — chargement en cours (scrape multpl.com).' },
         { id:'pe_fwd',    name:'P/E Trailing S&P 500',  val:38, sig:'neutral', w:2, raw:'—',       unit:'x',       source:'live',      desc:'P/E Trailing S&P 500 (SPY) — chargement via le backend.' },
       ]},
