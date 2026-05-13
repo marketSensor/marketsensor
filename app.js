@@ -309,6 +309,16 @@ function defaultData() {
 /* ══════════════════════════════════════════════════════════════════
    LIVE DATA UPDATER
    ══════════════════════════════════════════════════════════════════ */
+function findInd(groups, id) {
+  for (const g of groups) { const i = g.indicators.find(x => x.id === id); if (i) return i; }
+  return null;
+}
+function applyPatch(groups, id, patch) {
+  const ind = findInd(groups, id);
+  if (!ind) return false;
+  Object.assign(ind, patch, { source: 'live' });
+  return true;
+}
 async function fetchLiveData(data) {
   let live = 0;
 
@@ -739,7 +749,42 @@ const INDICATOR_INFO = {
   goldsil:{what:"Nombre d'onces d'argent pour acheter une once d'or. Fluctue entre ~40 et ~120 historiquement.",why:"Quand le ratio est élevé, l'argent est sous-évalué vs l'or et tend à surperformer lors du prochain cycle haussier.",how:"> 80 : argent bon marché, le favoriser. 60-80 : normal. < 60 : argent cher vs or. Moy. historique ~50-60.",creator:"Analyse historique des métaux"},
   gold_oil_ratio:{what:"Prix de l'or divisé par le prix du pétrole WTI. Indique combien de barils achète une once d'or.",why:"Indicateur macroéconomique : en expansion, le pétrole s'apprécie plus (ratio bas). En récession, l'or surperforme (ratio haut).",how:"< 15 : expansion, favorable aux actifs risqués. 15-30 : normal. > 30 : stress économique ou récession.",creator:"Analyse macroéconomique"},
   platpall:{what:"Compare Platine et Palladium, tous deux utilisés dans les convertisseurs catalytiques automobiles.",why:"Historiquement Pt > Pd. Depuis 2018 inversé (diesel→essence). La transition VE réduira les deux. Normalisations attendues.",how:"Ratio < 1 (Pt < Pd) : platine à décote historique, potentiel de rattrapage. > 1 : normalisation en cours.",creator:"London Platinum & Palladium Market"},
+
+  /* ── ETFs boursiers ──────────────────────────────────────────── */
+  rsi_cw8:  {what:"RSI 14 jours de l'ETF Amundi MSCI World (CW8), couvrant ~1600 grandes et moyennes capitalisations dans 23 pays développés.",why:"Le MSCI World représente l'essentiel de la capitalisation boursière mondiale développée. C'est le baromètre d'un portefeuille diversifié international.",how:"< 30 : marché mondial survendu, opportunité. > 70 : suracheté. La MM200 est le signal de tendance long terme le plus fiable pour ce type d'ETF.",creator:"Amundi / MSCI"},
+  macd_cw8: {what:"MACD de l'ETF CW8 (Amundi MSCI World).",why:"Détecte les retournements de tendance sur les marchés développés mondiaux. Signal clé pour les investisseurs long terme.",how:"Positif : tendance haussière mondiale confirmée. Négatif : tendance baissière. À croiser avec la MM200.",creator:"Amundi / MSCI"},
+  mm200_cw8:{what:"Position du CW8 par rapport à sa moyenne mobile 200 jours.",why:"La MM200 est le filtre de tendance long terme par excellence. Au-dessus = bull market. En dessous = bear market.",how:"Au-dessus : rester investi. En dessous : prudence, envisager de réduire l'exposition.",creator:"Analyse technique"},
+  rsi_ese:  {what:"RSI 14 jours de l'ETF Amundi S&P 500 (ESE), répliquant les 500 plus grandes entreprises américaines.",why:"Le S&P 500 est l'indice le plus suivi au monde. Son RSI capte les excès du marché américain, dominant mondial.",how:"< 30 : marché US survendu. > 70 : suracheté. En tendance haussière forte, le RSI peut rester > 70 plusieurs mois.",creator:"Amundi / S&P Dow Jones Indices"},
+  mm200_ese:{what:"Position de l'ESE (S&P 500 ETF) par rapport à sa MM200.",why:"La MM200 du S&P 500 est LA frontière surveillée par tous les gérants institutionnels. Franchissement = signal majeur.",how:"Au-dessus : bull market US intact. En dessous avec pente descendante : bear market → prudence importante.",creator:"Analyse technique"},
+  rsi_paeem:{what:"RSI 14 jours de l'ETF Amundi MSCI Emerging Markets (PAEEM), couvrant 24 marchés émergents.",why:"Les marchés émergents offrent une croissance supérieure mais avec plus de volatilité. Un RSI bas peut offrir des opportunités.",how:"< 30 : marchés émergents survendus, potentiel intéressant. > 70 : suracheté. Très sensible au dollar (DXY) et aux taux.",creator:"Amundi / MSCI"},
+  mm200_paeem:{what:"Position du PAEEM par rapport à sa MM200.",why:"Les émergents sous leur MM200 sont souvent pénalisés par un dollar fort ou des flux sortants. Signal de tendance essentiel.",how:"Au-dessus : dynamique positive sur les émergents. En dessous : flux sortants, dollar fort → réduire l'exposition.",creator:"Analyse technique"},
+  rsi_paasi:{what:"RSI 14 jours de l'ETF Amundi MSCI Asia Pacific ex Japan (PAASI).",why:"L'Asie (Chine, Inde, Corée, Taïwan...) représente le moteur de croissance mondial de demain. Forte pondération technologie.",how:"< 30 : Asie survendue, potentiel de rebond. > 70 : suracheté. Très sensible aux tensions géopolitiques et au cycle Chine.",creator:"Amundi / MSCI"},
+  mm200_paasi:{what:"Position du PAASI (Asie Pac. ex-Japon) par rapport à sa MM200.",why:"Filtre de tendance long terme sur les marchés asiatiques. Déterminant pour les décisions d'allocation géographique.",how:"Au-dessus : dynamique asiatique positive. En dessous : ralentissement ou risques régionaux → prudence.",creator:"Analyse technique"},
+
+  /* ── Altcoins ────────────────────────────────────────────────── */
+  rsi_eth:{what:"RSI 14 jours d'Ethereum (ETH-USD), la deuxième plus grande cryptomonnaie.",why:"Ethereum est la plateforme de smart contracts dominante (DeFi, NFT, Layer 2). Son RSI détecte les excès spéculatifs sur cet actif à forte volatilité.",how:"< 30 : ETH survendu, opportunité. > 70 : suracheté. Les cycles d'ETH sont corrélés à BTC mais amplifiés.",creator:"Analyse technique / CoinGecko"},
+  vs_btc_eth:{what:"Performance relative d'Ethereum vs Bitcoin sur 90 jours.",why:"Mesure si ETH surperforme ou sous-performe BTC. Quand ETH surperforme, c'est souvent le signal d'une phase 'altseason'.",how:"Positif (ETH > BTC) : rotation vers les altcoins en cours. Négatif : BTC dominant, altcoins en retrait.",creator:"Analyse de marché"},
+  rsi_sol:{what:"RSI 14 jours de Solana (SOL-USD), blockchain haute performance.",why:"Solana est une des blockchains à la croissance la plus rapide. Très volatile, son RSI identifie les points extrêmes de spéculation.",how:"< 30 : SOL survendu. > 70 : suracheté. SOL est très corrélé à BTC/ETH mais amplifie fortement les mouvements.",creator:"Analyse technique / CoinGecko"},
+  vs_btc_sol:{what:"Performance relative de Solana vs Bitcoin sur 90 jours.",why:"Indicateur de force relative. SOL surperformant BTC = marché risk-on, appétit pour les altcoins à fort bêta.",how:"Fortement positif : SOL en phase spéculative. Négatif : rotation vers BTC (risk-off crypto).",creator:"Analyse de marché"},
+  rsi_hype:{what:"RSI 14 jours de Hyperliquid (HYPE), token du DEX perpétuel le plus utilisé.",why:"HYPE est lié à l'écosystème DeFi et aux volumes de trading décentralisé. Token récent (2024) à très forte volatilité.",how:"< 30 : survendu, potentiel rebond. > 70 : suracheté. Données limitées (token < 1 an) → interprétation avec prudence.",creator:"Analyse technique / CoinGecko"},
+  vs_btc_hype:{what:"Performance relative de HYPE vs Bitcoin sur 90 jours.",why:"Mesure si le secteur DeFi/DEX surperforme BTC. Signal d'intérêt pour les actifs DeFi spéculatifs.",how:"Très positif : intérêt fort pour les DEX et DeFi. Négatif : rotation vers des actifs plus sûrs.",creator:"Analyse de marché"},
+
+  /* ── Uranium & énergie ───────────────────────────────────────── */
+  rsi_ura:{what:"RSI 14 jours du URA ETF (Global X Uranium ETF), panier de sociétés liées à l'uranium.",why:"L'uranium est en déficit structurel d'offre. Le RSI de l'ETF capte les excès de spéculation sur ce secteur de niche à fort potentiel.",how:"< 30 : secteur uranium survendu. > 70 : suracheté après une hausse. La tendance long terme reste haussière (demande nucléaire).",creator:"Global X / Analyse technique"},
+  rsi_urnm:{what:"RSI 14 jours du URNM (Sprott Uranium Miners ETF), le plus pur proxy des mineurs d'uranium.",why:"URNM est concentré sur les producteurs purs (Cameco, Kazatomprom) contrairement à URA plus diversifié. Signal direct sur le secteur.",how:"< 30 : mineurs uranium survendus, opportunité. > 70 : excès spéculatif. Plus volatil que URA.",creator:"Sprott Asset Management"},
+  rsi_ccj:{what:"RSI 14 jours de Cameco Corp (CCJ), le plus grand producteur d'uranium occidental.",why:"Cameco est le baromètre du secteur uranium. Contrôle ~15% de la production mondiale. Son RSI reflète la santé du secteur.",how:"< 30 : Cameco survendu, opportunité d'entrée sur le leader du secteur. > 70 : excès spéculatif.",creator:"Analyse technique / yfinance"},
+  rsi_wti:{what:"RSI 14 jours du pétrole WTI (West Texas Intermediate), référence américaine du pétrole brut.",why:"Le pétrole est le commodity le plus influent sur l'économie mondiale. Son RSI capte les déséquilibres offre/demande à court terme.",how:"< 30 : pétrole survendu (souvent lié à une récession ou excès d'offre). > 70 : suracheté (tensions géopolitiques, OPEC).",creator:"NYMEX / CME Group"},
+  mm200_wti:{what:"Position du WTI par rapport à sa moyenne mobile 200 jours.",why:"La MM200 du pétrole sépare les régimes haussiers (favorable à l'inflation) des régimes baissiers (désinflation).",how:"Au-dessus : tendance haussière, favorable aux actifs réels. En dessous : pression déflationniste.",creator:"Analyse technique"},
+  rsi_brent:{what:"RSI 14 jours du pétrole Brent, référence internationale du brut.",why:"Le Brent est la référence de 2/3 des échanges mondiaux de pétrole. Différentiel avec WTI reflète les dynamiques géopolitiques.",how:"< 30 : survendu. > 70 : suracheté. À surveiller avec le DXY et les décisions OPEC+.",creator:"ICE Futures Europe"},
+  rsi_ng:{what:"RSI 14 jours du Gaz Naturel (Natural Gas Futures, NG=F).",why:"Le gaz est extrêmement volatil — le RSI est particulièrement utile pour identifier les excès sur ce marché saisonnier.",how:"< 30 : gaz survendu (souvent en été). > 70 : suracheté (hiver, tensions géopolitiques). Saisonnalité forte.",creator:"NYMEX / CME Group"},
+
+  /* ── Métaux industriels ──────────────────────────────────────── */
+  rsi_copper:{what:"RSI 14 jours du cuivre (HG=F), le métal le plus utilisé dans la transition énergétique.",why:"Le cuivre est le 'Dr. Copper' — son prix prédit l'activité économique mondiale. Un RSI bas peut offrir une entrée sur ce métal structurellement demandé.",how:"< 30 : cuivre survendu, opportunité. > 70 : suracheté. Demande structurelle par EVs, IA, réseaux électriques.",creator:"CME Group / LME"},
+  mm200_copper:{what:"Position du cuivre par rapport à sa MM200.",why:"La MM200 du cuivre est un baromètre de la croissance mondiale. Au-dessus = expansion économique. En dessous = ralentissement.",how:"Au-dessus : croissance mondiale confirmée, favorable aux actifs risqués. En dessous : signal de ralentissement.",creator:"Analyse technique"},
+  rsi_gold:{what:"RSI 14 jours de l'or (GC=F, Gold Futures).",why:"L'or est la valeur refuge ultime. Son RSI identifie les moments où la peur ou la cupidité ont poussé le prix à un extrême.",how:"< 30 : or survendu, accumulation opportune. > 70 : or suracheté à court terme, mais tendance haussière peut continuer si contexte macro favorable.",creator:"COMEX / CME Group"},
+  perf1y_gold:{what:"Performance de l'or sur les 12 derniers mois.",why:"La performance annuelle de l'or reflète le contexte macro global : inflation, géopolitique, confiance dans les banques centrales.",how:"> +15% : tendance haussière forte. 0-15% : appréciation modérée. Négatif : or sous pression (taux réels élevés ou dollar fort).",creator:"COMEX / CME Group"},
 };
+
 
 function openTooltip(indId) {
   let ind = null;
