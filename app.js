@@ -12,13 +12,12 @@ const APP = {
 };
 
 /* ── Config (localStorage) ───────────────────────────────────────── */
+const AV_KEY     = 'E85V2XISD5ZDIWRS';
+const BACKEND    = 'https://web-production-981fc.up.railway.app';
+
 const Config = {
-  get avKey()         { return localStorage.getItem('ms_av_key')           || ''; },
-  set avKey(v)        { localStorage.setItem('ms_av_key', v); },
   get theme()         { return localStorage.getItem('ms_theme')           || 'dark'; },
   set theme(v)        { localStorage.setItem('ms_theme', v); },
-  get backendUrl()    { return localStorage.getItem('ms_backend_url')     || ''; },
-  set backendUrl(v)   { localStorage.setItem('ms_backend_url', v); },
   get alertEmail()    { return localStorage.getItem('ms_alert_email')     || ''; },
   set alertEmail(v)   { localStorage.setItem('ms_alert_email', v); },
   get compareTab()    { return localStorage.getItem('ms_compare_tab')     || ''; },
@@ -66,7 +65,7 @@ const Api = {
     return d?.hash_rate ? { hashRate: d.hash_rate } : null;
   },
   async backend(path = '/api/indicators') {
-    const base = Config.backendUrl.replace(/\/$/, '');
+    const base = BACKEND.replace(/\/$/, '');
     if (!base) return null;
     return await this.get(`${base}${path}`, 'Backend');
   },
@@ -75,8 +74,8 @@ const Api = {
   async avRSI(symbol) {
     const c = this._avRead(`rsi_${symbol}`);
     if (c !== null) return c;
-    if (!Config.avKey) return null;
-    const d = await this.get(`https://www.alphavantage.co/query?function=RSI&symbol=${symbol}&interval=daily&time_period=14&series_type=close&apikey=${Config.avKey}`, `AV RSI ${symbol}`);
+    if (!AV_KEY) return null;
+    const d = await this.get(`https://www.alphavantage.co/query?function=RSI&symbol=${symbol}&interval=daily&time_period=14&series_type=close&apikey=${AV_KEY}`, `AV RSI ${symbol}`);
     const a = d?.['Technical Analysis: RSI'];
     if (!a) return null;
     const v = parseFloat(Object.values(a)[0].RSI);
@@ -85,8 +84,8 @@ const Api = {
   async avMACD(symbol) {
     const c = this._avRead(`macd_${symbol}`);
     if (c !== null) return c;
-    if (!Config.avKey) return null;
-    const d = await this.get(`https://www.alphavantage.co/query?function=MACD&symbol=${symbol}&interval=daily&series_type=close&apikey=${Config.avKey}`, `AV MACD ${symbol}`);
+    if (!AV_KEY) return null;
+    const d = await this.get(`https://www.alphavantage.co/query?function=MACD&symbol=${symbol}&interval=daily&series_type=close&apikey=${AV_KEY}`, `AV MACD ${symbol}`);
     const a = d?.['Technical Analysis: MACD'];
     if (!a) return null;
     const l = Object.values(a)[0];
@@ -659,7 +658,7 @@ function setStatus(type, text) {
    CALENDRIER MACRO
    ══════════════════════════════════════════════════════════════════ */
 async function loadCalendar() {
-  const base = Config.backendUrl.replace(/\/$/, '');
+  const base = BACKEND.replace(/\/$/, '');
   if (!base) return;
   try {
     const r = await fetch(`${base}/api/calendar?days=180`);
@@ -713,7 +712,7 @@ function toggleCalendar() {
    HISTORIQUE DES SIGNAUX
    ══════════════════════════════════════════════════════════════════ */
 async function reportSignals() {
-  const base = Config.backendUrl.replace(/\/$/, '');
+  const base = BACKEND.replace(/\/$/, '');
   if (!base) return;
   try {
     const body = {};
@@ -727,7 +726,7 @@ async function reportSignals() {
 }
 
 async function loadHistory() {
-  const base = Config.backendUrl.replace(/\/$/, '');
+  const base = BACKEND.replace(/\/$/, '');
   if (!base) return;
   try {
     const r = await fetch(`${base}/api/history?limit=60`);
@@ -866,22 +865,19 @@ function exportPDF() {
   setTimeout(()=>{ document.title='MarketSense — Aide à l\'investissement'; }, 2000);
 }
 function openSettings() {
-  const avEl=gel('av-key'),bkEl=gel('backend-url'),emEl=gel('alert-email');
-  if(avEl) avEl.value=Config.avKey;
-  if(bkEl) bkEl.value=Config.backendUrl;
-  if(emEl) emEl.value=Config.alertEmail;
-  gel('settings-overlay').style.display='block';
-  gel('settings-modal').style.display='block';
+  const emEl = gel('alert-email');
+  if (emEl) emEl.value = Config.alertEmail;
+  gel('settings-overlay').style.display = 'block';
+  gel('settings-modal').style.display   = 'block';
 }
 function closeSettings() {
-  gel('settings-overlay').style.display='none';
-  gel('settings-modal').style.display='none';
+  gel('settings-overlay').style.display = 'none';
+  gel('settings-modal').style.display   = 'none';
 }
 function saveSettings() {
-  Config.avKey     =(gel('av-key')?.value||'').trim();
-  Config.backendUrl=(gel('backend-url')?.value||'').trim().replace(/\/$/,'');
-  Config.alertEmail=(gel('alert-email')?.value||'').trim();
-  closeSettings(); refresh();
+  Config.alertEmail = (gel('alert-email')?.value || '').trim();
+  closeSettings();
+  refresh();
 }
 function toggleTheme() {
   const next=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
@@ -902,7 +898,7 @@ async function refresh() {
     APP.data=await fetchLiveData(defaultData());
     APP.lastUpdate=new Date();
     const ts=APP.lastUpdate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-    const bk=Config.backendUrl?'· Backend ✓':'· ⚠ Backend non configuré';
+    const bk=BACKEND?'· Backend ✓':'· ⚠ Backend non configuré';
     setStatus('live',`${ts} · ${APP.liveCount} live ${bk}`);
     await Promise.all([reportSignals(), loadHistory(), loadCalendar()]);
     renderContent();

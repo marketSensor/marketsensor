@@ -105,22 +105,6 @@
     </div>
   </div>
 
-  <div class="modal-section">
-    <p class="modal-desc">URL de votre backend déployé. Débloque tous les indicateurs boursiers et matières premières en temps réel.</p>
-    <div class="input-row">
-      <input type="text" id="backend-url" class="text-input" placeholder="https://votre-app.railway.app" />
-    </div>
-    <p class="modal-desc" style="margin-top:8px">Pas encore déployé ? Suivez le guide dans le <code style="font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">README.md</code>.</p>
-  </div>
-
-  <div class="modal-section">
-    <h3 class="modal-section-title">Alpha Vantage — Fallback boursier (optionnel)</h3>
-    <p class="modal-desc">Utilisé uniquement si le backend n'est pas configuré. Quota 25 req/jour, mis en cache 24h automatiquement.</p>
-    <div class="input-row">
-      <input type="text" id="av-key" class="text-input" placeholder="Votre clé Alpha Vantage…" />
-      <a href="https://www.alphavantage.co/support/#api-key" target="_blank" class="link-btn">Obtenir gratuitement →</a>
-    </div>
-  </div>
 
   <div class="modal-section">
     <h3 class="modal-section-title">Sources de données</h3>
@@ -128,8 +112,8 @@
       <div class="source-row"><span class="live-dot"></span><strong>Alternative.me</strong><span class="src-desc">Crypto Fear &amp; Greed</span><span class="badge-free">Gratuit</span></div>
       <div class="source-row"><span class="live-dot"></span><strong>CoinGecko</strong><span class="src-desc">Prix BTC, dominance, RSI, MACD, Pi Cycle</span><span class="badge-free">Gratuit</span></div>
       <div class="source-row"><span class="live-dot"></span><strong>Blockchain.info</strong><span class="src-desc">Hash Rate Bitcoin</span><span class="badge-free">Gratuit</span></div>
-      <div class="source-row"><span class="sim-dot"></span><strong>Alpha Vantage</strong><span class="src-desc">S&amp;P 500 RSI, MACD, VIX, Or, Argent</span><span class="badge-key">Clé requise</span></div>
-      <div class="source-row"><span class="sim-dot"></span><strong>Simulé</strong><span class="src-desc">MVRV Z-Score, Shiller CAPE, Uranium, CAPE, etc.</span><span class="badge-sim">Simulé</span></div>
+      <div class="source-row"><span class="live-dot"></span><strong>Alpha Vantage</strong><span class="src-desc">S&amp;P 500 RSI, MACD, Or — clé intégrée, cache 24h</span><span class="badge-free">Intégré</span></div>
+      <div class="source-row"><span class="live-dot"></span><strong>Railway Backend</strong><span class="src-desc">Bourse, matières premières, indicateurs avancés</span><span class="badge-free">Intégré</span></div>
     </div>
   </div>
 
