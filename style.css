@@ -642,3 +642,28 @@ body {
   /* Page */
   @page { margin: 15mm; size: A4 landscape; }
 }
+
+/* ── Indicateur cliquable ───────────────────────── */
+.ind-clickable { cursor: pointer; }
+.ind-clickable:hover {
+  border-color: var(--accent-border) !important;
+  background: var(--bg-card-h) !important;
+}
+.ind-detail-hint {
+  font-size: 14px; color: var(--text-3); font-weight: 700;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--bg-panel); border: 1px solid var(--border);
+  transition: all var(--transition); line-height: 1; letter-spacing: 2px;
+}
+.ind-clickable:hover .ind-detail-hint {
+  background: var(--accent-light); color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+/* ── Sparkline vide ─────────────────────────────── */
+.sparkline-empty {
+  font-size: 10px; color: var(--text-3);
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-style: italic;
+}

@@ -721,17 +721,21 @@ async function loadHistory() {
 
 function renderHistorySparkline(tab) {
   const pts = (APP.history[tab] || []).slice(-30);
-  if (pts.length < 3) return '';
-  const W = 160, H = 28, pad = 2;
+  if (pts.length < 1) return '<div class="sparkline-empty">Historique en cours de constitution…</div>';
+  if (pts.length === 1) {
+    const col = pts[0].sig === 'buy' ? 'var(--green)' : pts[0].sig === 'sell' ? 'var(--red)' : 'var(--amber)';
+    return `<div class="sparkline-wrap"><span class="sparkline-label">1 pt</span><svg width="160" height="28" viewBox="0 0 160 28"><circle cx="80" cy="14" r="4" fill="${col}"/></svg></div>`;
+  }
+  const W = 160, H = 28, pad = 3;
   const vals = pts.map(p => p.bp);
-  const mn = Math.min(...vals), mx = Math.max(...vals) || 100;
-  const x = (i) => pad + (i / (pts.length - 1)) * (W - 2 * pad);
-  const y = (v) => H - pad - ((v - mn) / (mx - mn || 1)) * (H - 2 * pad);
+  const mn = Math.min(...vals), mx = Math.max(...vals, mn + 1);
+  const x = i => pad + (i / (pts.length - 1)) * (W - 2 * pad);
+  const y = v => H - pad - ((v - mn) / (mx - mn)) * (H - 2 * pad);
   const d = vals.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const last = pts[pts.length - 1];
   const col = last.sig === 'buy' ? 'var(--green)' : last.sig === 'sell' ? 'var(--red)' : 'var(--amber)';
-  return `<div class="sparkline-wrap" title="Évolution du signal Achat% sur 30 jours">
-    <span class="sparkline-label">30j</span>
+  return `<div class="sparkline-wrap" title="Évolution du signal Achat% sur ${pts.length} points">
+    <span class="sparkline-label">${pts.length}pts</span>
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
       <path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
       <circle cx="${x(vals.length-1).toFixed(1)}" cy="${y(vals[vals.length-1]).toFixed(1)}" r="3" fill="${col}"/>
@@ -997,10 +1001,13 @@ function renderIndicator(ind) {
     </div>`;
   }
 
-  return `<div class="ind" ${click}>
+  return `<div class="ind ind-clickable" ${click}>
     <div class="ind-top">
       <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span><span class="tag-live">Live</span></div>
-      <span class="badge badge-${ind.sig}">${SIG[ind.sig]}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="badge badge-${ind.sig}">${SIG[ind.sig]}</span>
+        <span class="ind-detail-hint">⋯</span>
+      </div>
     </div>
     <div class="ind-desc">${ind.desc}</div>
     <div class="meter"><div class="meter-fill ${ind.sig}" style="width:${ind.val}%"></div></div>
