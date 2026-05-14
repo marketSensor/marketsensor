@@ -712,16 +712,17 @@ async function loadAnalytics(data) {
 async function fetchAnalytics() {
   try {
     const ctrl  = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20000);
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     const r = await fetch(`${BACKEND}/api/analytics`, { signal: ctrl.signal, cache: 'no-store' });
     clearTimeout(timer);
-    if (r.status === 202) {
-      const d = await r.json();
-      return { _computing: true, store_size: d.store_size || 0 };
-    }
-    if (!r.ok) return null;
-    return await r.json();
-  } catch(e) { console.warn('[analytics]', e.message); return null; }
+    const d = await r.json();
+    if (r.status === 202) return { _computing: true, store_size: d.store_size || 0 };
+    if (!r.ok)            return { _error: true, msg: d.error || r.status };
+    // Vérifier que la réponse contient bien des analytics (pas juste un wrapper)
+    if (d.analytics)  return d.analytics;   // cas imbriqué { analytics: {...} }
+    if (d.correlations !== undefined) return d;  // cas plat
+    return { _computing: true, store_size: 0 }; // réponse inattendue
+  } catch(e) { console.warn('[analytics]', e.message); return { _computing: true, store_size: 0 }; }
 }
 
 /* ── Panel Analytics ─────────────────────────────────────────────── */
@@ -738,21 +739,29 @@ function toggleAnalytics() {
   }
 }
 
-function _startAnalyticsPolling(attempt = 1, maxAttempts = 24) {
+function _startAnalyticsPolling(attempt = 1, maxAttempts = 30) {
   fetchAnalytics().then(data => {
     if (!APP.analyticsPanelOpen) return;
-    if (data && !data._computing && !data.error) {
+
+    // Données reçues et valides
+    if (data && !data._computing && !data._error) {
       APP.analytics = data;
       renderAnalyticsPanel();
       return;
     }
+
+    // Mettre à jour le message de progression
     const msg = document.querySelector('#analytics-panel .analytics-retry-msg');
     if (msg) {
-      const info = data?._computing ? ` (${data.store_size} actifs chargés)` : '';
-      msg.textContent = `Tentative ${attempt}/${maxAttempts}${info} — retry dans 15s…`;
+      const store = data?._computing ? ` — ${data.store_size} actif(s) chargé(s)` : '';
+      const err   = data?._error ? ` [${data.msg}]` : '';
+      msg.textContent = `Calcul en cours${store}${err} — tentative ${attempt}/${maxAttempts}`;
     }
+
+    // Retry avec délai progressif (15s → 20s → 30s)
+    const delay = attempt < 5 ? 15000 : attempt < 10 ? 20000 : 30000;
     if (attempt < maxAttempts) {
-      setTimeout(() => _startAnalyticsPolling(attempt + 1, maxAttempts), 15000);
+      setTimeout(() => _startAnalyticsPolling(attempt + 1, maxAttempts), delay);
     }
   });
 }
