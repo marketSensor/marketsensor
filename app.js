@@ -13,7 +13,8 @@ const APP = {
 
 /* ── Config (localStorage) ───────────────────────────────────────── */
 const AV_KEY     = 'E85V2XISD5ZDIWRS';
-const BACKEND    = 'https://web-production-981fc.up.railway.app';
+// Données statiques générées toutes les heures par GitHub Actions (branche `data` du dépôt backend)
+const BACKEND    = 'https://marketsensor.github.io/marketsensor-backend';
 
 const Config = {
   get theme()         { return localStorage.getItem('ms_theme')           || 'dark'; },
@@ -64,7 +65,7 @@ const Api = {
     const d = await this.get('https://api.blockchain.info/stats', 'Blockchain');
     return d?.hash_rate ? { hashRate: d.hash_rate } : null;
   },
-  async backend(path = '/api/indicators') {
+  async backend(path = '/indicators.json') {
     const base = BACKEND.replace(/\/$/, '');
     if (!base) return null;
     return await this.get(`${base}${path}`, 'Backend');
@@ -713,7 +714,7 @@ async function fetchAnalytics() {
   try {
     const ctrl  = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
-    const r = await fetch(`${BACKEND}/api/analytics`, { signal: ctrl.signal, cache: 'no-store' });
+    const r = await fetch(`${BACKEND}/analytics.json`, { signal: ctrl.signal, cache: 'no-store' });
     clearTimeout(timer);
     const d = await r.json();
     if (r.status === 202) return { _computing: true, store_size: d.store_size || 0 };
@@ -905,7 +906,7 @@ async function loadCalendar() {
   const base = BACKEND.replace(/\/$/, '');
   if (!base) return;
   try {
-    const r = await fetch(`${base}/api/calendar?days=180`);
+    const r = await fetch(`${base}/calendar.json`);
     if (!r.ok) return;
     const d = await r.json();
     APP.calendar = d.events || [];
@@ -955,25 +956,14 @@ function toggleCalendar() {
 /* ══════════════════════════════════════════════════════════════════
    HISTORIQUE DES SIGNAUX
    ══════════════════════════════════════════════════════════════════ */
-async function reportSignals() {
-  const base = BACKEND.replace(/\/$/, '');
-  if (!base) return;
-  try {
-    const body = {};
-    ['bourse','crypto','matieres'].forEach(tab => {
-      if (!APP.data[tab]) return;
-      const r = computeReco(APP.data[tab], tab);
-      body[tab]=r.sig; body[`${tab}_bp`]=r.bp; body[`${tab}_sp`]=r.sp;
-    });
-    await fetch(`${base}/api/signals`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  } catch(e) { console.warn('[signals]', e.message); }
-}
+// Les signaux sont calculés et historisés côté serveur (GitHub Actions) : plus rien à envoyer.
+async function reportSignals() {}
 
 async function loadHistory() {
   const base = BACKEND.replace(/\/$/, '');
   if (!base) return;
   try {
-    const r = await fetch(`${base}/api/history?limit=60`);
+    const r = await fetch(`${base}/history.json`);
     if (!r.ok) return;
     const d = await r.json();
     ['bourse','crypto','matieres'].forEach(tab => {
