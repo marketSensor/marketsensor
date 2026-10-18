@@ -174,11 +174,11 @@ function defaultData() {
     ],
     crypto: [
       { name: 'Métriques On-Chain', indicators: [
-        { id:'mvrv',     name:'MVRV Z-Score',           val:50, sig:'neutral', w:3, raw:'—',        unit:'',     source:'live', desc:'MVRV Z-Score (Bitbo API) — chargement.' },
-        { id:'nupl',     name:'NUPL',                   val:50, sig:'neutral', w:3, raw:'—',        unit:'',     source:'live', desc:'Net Unrealized Profit/Loss (Bitbo API) — chargement.' },
-        { id:'sopr',     name:'SOPR',                   val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'live', desc:'Spent Output Profit Ratio (Bitbo API) — chargement.' },
-        { id:'cdd',      name:'Coin Days Destroyed',    val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'live', desc:'Coin Days Destroyed (Bitbo API) — chargement.' },
-        { id:'nvt',      name:'NVT Signal',             val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'live', desc:'Network Value to Transactions (Bitbo API) — chargement.' },
+        { id:'mvrv',     name:'MVRV Z-Score',           val:50, sig:'neutral', w:3, raw:'—',        unit:'',     source:'simulated', desc:'MVRV Z-Score (Bitbo) — indisponible, API Bitbo payante (clé requise).' },
+        { id:'nupl',     name:'NUPL',                   val:50, sig:'neutral', w:3, raw:'—',        unit:'',     source:'simulated', desc:'Net Unrealized Profit/Loss (Bitbo) — indisponible, API Bitbo payante (clé requise).' },
+        { id:'sopr',     name:'SOPR',                   val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'simulated', desc:'Spent Output Profit Ratio (Bitbo) — indisponible, API Bitbo payante (clé requise).' },
+        { id:'cdd',      name:'Coin Days Destroyed',    val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'simulated', desc:'Coin Days Destroyed (Bitbo) — indisponible, API Bitbo payante (clé requise).' },
+        { id:'nvt',      name:'NVT Signal',             val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'simulated', desc:'Network Value to Transactions (Bitbo) — indisponible, API Bitbo payante (clé requise).' },
         { id:'hashrate', name:'Hash Rate BTC',          val:88, sig:'buy',     w:2, raw:'—',        unit:'EH/s', source:'live', desc:'Hash Rate BTC en temps réel (Blockchain.info).' },
       ]},
       { name: 'Sentiment Crypto', indicators: [
@@ -188,7 +188,7 @@ function defaultData() {
       ]},
       { name: 'Indicateurs de Cycle', indicators: [
         { id:'picycle',  name:'Pi Cycle Top',           val:28, sig:'buy',     w:3, raw:'—',        unit:'',     source:'live', desc:'Pi Cycle calculé depuis les prix BTC (CoinGecko) — chargement.' },
-        { id:'puell',    name:'Puell Multiple',         val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'live', desc:'Puell Multiple (Bitbo API) — chargement.' },
+        { id:'puell',    name:'Puell Multiple',         val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'simulated', desc:'Puell Multiple (Bitbo) — indisponible, API Bitbo payante (clé requise).' },
         { id:'mayer',    name:'Mayer Multiple',         val:50, sig:'neutral', w:2, raw:'—',        unit:'x',    source:'live', desc:'Prix BTC / MM200 (Bitbo / yfinance) — chargement.' },
         { id:'rainbow',  name:'Rainbow Chart Zone',     val:52, sig:'neutral', w:1, raw:'—',        unit:'',     source:'live', desc:'Rainbow Chart BTC (log-régression) — chargement.' },
       ]},
