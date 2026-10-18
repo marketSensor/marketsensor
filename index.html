@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#1c4fd8" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=7" />
 </head>
 <body>
 
@@ -34,6 +34,10 @@
         <span class="status-dot" id="status-dot"></span>
         <span id="status-text">Initialisation…</span>
       </div>
+      <!-- Assistant IA -->
+      <button class="icon-btn" onclick="openAssistant()" title="Assistant IA — poser une question à l'analyste">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z"/></svg>
+      </button>
       <!-- Analytics -->
       <button class="icon-btn" onclick="toggleAnalytics()" title="Analyse avancée — Corrélations, Divergences, Backtesting">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -103,19 +107,24 @@
 
   <div class="modal-section">
     <h3 class="modal-section-title">🔔 Alertes email</h3>
-    <p class="modal-desc">Recevez un email quand le signal global d'un onglet change (Achat → Vente, etc.).</p>
-    <div class="input-row">
-      <input type="email" id="alert-email" class="text-input" placeholder="votre@email.com" />
-    </div>
-    <div class="settings-alert-note">
-      L'email est envoyé par votre propre serveur SMTP Railway. Configurez les variables d'environnement :
-    </div>
+    <p class="modal-desc">Les alertes par email (changement de signal d'un onglet) sont envoyées par le serveur de données, pas par ce navigateur. Elles se configurent dans GitHub : Settings → Secrets and variables → Actions du dépôt <code>marketsensor-backend</code>.</p>
     <div class="smtp-config">
-      <code>SMTP_HOST</code> smtp.gmail.com &nbsp;·&nbsp;
-      <code>SMTP_PORT</code> 587<br>
       <code>SMTP_USER</code> votre@gmail.com<br>
       <code>SMTP_PASSWORD</code> mot-de-passe-application-Google<br>
       <code>ALERT_EMAILS</code> destinataire@email.com
+    </div>
+    <p class="modal-desc" style="margin-top:10px">Dans ce navigateur, étoilez des indicateurs (☆) : un message s'affiche (et une notification si vous l'autorisez) quand leur signal change, à la prochaine ouverture de la page.</p>
+  </div>
+
+  <div class="modal-section">
+    <h3 class="modal-section-title">🧠 Assistant IA</h3>
+    <p class="modal-desc">Clé API Anthropic pour discuter avec l'analyste. Elle reste dans ce navigateur.</p>
+    <div class="input-row"><input type="password" id="ai-key-setting" class="text-input" placeholder="sk-ant-…" autocomplete="off" /></div>
+    <div class="input-row" style="margin-top:8px">
+      <select id="ai-model-setting" class="text-input">
+        <option value="claude-sonnet-5-5">Claude Sonnet 5.5 — rapide, économique</option>
+        <option value="claude-opus-5-5">Claude Opus 5.5 — analyse plus poussée</option>
+      </select>
     </div>
   </div>
 
@@ -127,7 +136,7 @@
       <div class="source-row"><span class="live-dot"></span><strong>CoinGecko</strong><span class="src-desc">Prix BTC, dominance, RSI, MACD, Pi Cycle</span><span class="badge-free">Gratuit</span></div>
       <div class="source-row"><span class="live-dot"></span><strong>Blockchain.info</strong><span class="src-desc">Hash Rate Bitcoin</span><span class="badge-free">Gratuit</span></div>
       <div class="source-row"><span class="live-dot"></span><strong>Alpha Vantage</strong><span class="src-desc">S&amp;P 500 RSI, MACD, Or — clé intégrée, cache 24h</span><span class="badge-free">Intégré</span></div>
-      <div class="source-row"><span class="live-dot"></span><strong>Railway Backend</strong><span class="src-desc">Bourse, matières premières, indicateurs avancés</span><span class="badge-free">Intégré</span></div>
+      <div class="source-row"><span class="live-dot"></span><strong>GitHub Actions</strong><span class="src-desc">Bourse, matières premières, macro (FRED), crypto — mis à jour chaque heure</span><span class="badge-free">Gratuit</span></div>
     </div>
   </div>
 
@@ -137,8 +146,9 @@
   </div>
 </div>
 
-<script src="data.js?v=6"></script>
-<script src="features.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="data.js?v=7"></script>
+<script src="features.js?v=7"></script>
+<script src="ai.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
