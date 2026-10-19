@@ -30,6 +30,7 @@ function renderWhy(groups, tab, r) {
       live.push({ ...i, group: g.name });
     });
   });
+  const ew = effectiveWeights(live); live.forEach((i, k) => { i.w = ew[k]; });   // poids effectifs (plafonds de famille)
   const total = live.reduce((a, i) => a + i.w, 0) || 1;
   const top = sig => live.filter(i => i.sig === sig)
     .sort((a, b) => b.w - a.w || Math.abs(b.val - 50) - Math.abs(a.val - 50)).slice(0, 3);
@@ -63,23 +64,32 @@ const BT_LABEL = { discriminant: ['✓', 'Test passé : ce signal a distingué l
   peu_informatif: ['≈', 'Test passé : ce signal n\'a pas apporté d\'avantage net'],
   inverse: ['✗', 'Test passé : ce signal a plutôt été trompeur'],
   insuffisant: ['·', 'Test passé : échantillon insuffisant'] };
-function btTag(id) {
-  const bt = APP.backtest?.indicators?.[id];
-  if (!bt) return '';
-  const [sym, tip] = BT_LABEL[bt.verdict] || BT_LABEL.insuffisant;
-  return `<span class="tag-bt bt-${bt.verdict}" title="${tip}">Passé ${sym}</span>`;
+function btFor(id, tab) {
+  const bt = APP.backtest;
+  const m = bt?.map?.[tab || APP.tab]?.[id];
+  const asset = m && bt.assets?.[m[0]];
+  const ind = asset?.indicators?.[m[1]];
+  return ind ? { ind, asset } : null;
 }
-function btBlock(id) {
-  const bt = APP.backtest?.indicators?.[id];
-  if (!bt) return '';
+function btTag(id, tab) {
+  const r = btFor(id, tab);
+  if (!r) return '';
+  const [sym, tip] = BT_LABEL[r.ind.verdict] || BT_LABEL.insuffisant;
+  return `<span class="tag-bt bt-${r.ind.verdict}" title="${tip} (${r.asset.label})">Passé ${sym}</span>`;
+}
+function btBlock(id, tab) {
+  const r = btFor(id, tab);
+  if (!r) return '';
+  const { ind: bt, asset } = r;
+  const H = APP.backtest.horizons || { '3m': '3 mois', '12m': '12 mois' };
   const f = v => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v} %`;
-  const row = (lbl, k) => `<tr><td>${lbl}</td><td>${f(bt.mean['63'][k])}</td><td>${f(bt.mean['252'][k])}</td><td>${bt.n[k] ?? 0} j</td></tr>`;
+  const row = (lbl, k) => `<tr><td>${lbl}</td><td>${f(bt.mean['3m'][k])}</td><td>${f(bt.mean['12m'][k])}</td><td>${bt.n[k] ?? 0} j</td></tr>`;
   const [sym, tip] = BT_LABEL[bt.verdict] || BT_LABEL.insuffisant;
   return `<div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:10px">📊 Que s'est-il passé après ce signal ? (depuis ${bt.since})</div>
-    <table class="bt-table"><thead><tr><th>Signal</th><th>S&amp;P 500 à 3 mois</th><th>à 12 mois</th><th>Jours</th></tr></thead>
+    <table class="bt-table"><thead><tr><th>Signal</th><th>${esc(asset.label.split(' (')[0])} à ${H['3m']}</th><th>à ${H['12m']}</th><th>Jours</th></tr></thead>
       <tbody>${row('Achat', 'buy')}${row('Neutre', 'neutral')}${row('Vente', 'sell')}</tbody></table>
-    <p style="font-size:12px;color:var(--text-2);margin:10px 0 0;line-height:1.5"><strong>${sym}</strong> ${tip}. Référence : ${f(APP.backtest.baseline['63'])} à 3 mois, ${f(APP.backtest.baseline['252'])} à 12 mois en moyenne.</p>
+    <p style="font-size:12px;color:var(--text-2);margin:10px 0 0;line-height:1.5"><strong>${sym}</strong> ${tip}. Référence : ${f(asset.baseline['3m'])} à ${H['3m']}, ${f(asset.baseline['12m'])} à ${H['12m']} en moyenne.</p>
     <p style="font-size:11px;color:var(--text-3);margin:6px 0 0;line-height:1.5">${APP.backtest.caveat}</p>
   </div>`;
 }
@@ -162,4 +172,29 @@ function checkSignalChanges() {
   }
   _ls.set('ms_lastsig', now);
   msgs.forEach(toast);
+}
+
+/* ── Suivi réel : ce que les signaux PUBLIÉS par le site ont donné à terme ── */
+async function loadTrack() {
+  try {
+    const r = await fetch(`${BACKEND.replace(/\/$/, '')}/trackrecord.json`);
+    if (r.ok) APP.track = (await r.json()).resume;
+  } catch (e) { console.warn('[suivi]', e.message); }
+}
+function renderTrack(tab) {
+  const t = APP.track, v = t?.tabs?.[tab]?.global;
+  if (!v) return '';
+  const asset = t.assets?.[tab] || '';
+  const f = c => (c && c.n) ? `${c.mean_pct > 0 ? '+' : ''}${c.mean_pct} % <span class="tk-n">(${c.n})</span>` : '—';
+  const hs = [['1m', '1 mois'], ['3m', '3 mois'], ['6m', '6 mois'], ['12m', '12 mois']];
+  const row = (lbl, k) => `<tr><td>${lbl}</td>${hs.map(([h]) => `<td>${f(v[h]?.[k])}</td>`).join('')}</tr>`;
+  const since = t.depuis ? new Date(t.depuis).toLocaleDateString('fr-FR') : '—';
+  const warn = t.significatif ? '' : `<p class="tk-warn">⚠ Trop tôt pour conclure : seuls les signaux assez anciens sont évalués (il faut au moins ${t.seuil_significatif} par horizon pour que ce suivi soit parlant).</p>`;
+  return `<details class="why"><summary>Suivi réel des signaux du site — ${esc(asset)}</summary>
+    <p class="why-rule">Rendement moyen de ${esc(asset)} après chaque verdict publié par le site, depuis le ${since} (${t.jours_de_recul} jours de recul). Entre parenthèses : nombre de signaux évalués.</p>
+    ${warn}
+    <table class="bt-table"><thead><tr><th>Verdict</th>${hs.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead>
+      <tbody>${row('Achat', 'buy')}${row('Neutre', 'neutral')}${row('Vente', 'sell')}</tbody></table>
+    <p class="why-rule">Un bon signal d'achat devrait être suivi de meilleurs rendements qu'un signal de vente. Chaque ligne est un état du verdict global ; les journées voisines se ressemblent, donc l'échantillon réel est plus petit que les nombres affichés.</p>
+  </details>`;
 }

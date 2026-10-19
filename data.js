@@ -222,6 +222,24 @@ function defaultData() {
       i.h = (SHORT_IDS.has(i.id) || /^(rsi|macd|stoch|bollinger|atr|mm50|vs_btc)/.test(i.id)) ? 'c' : 'l';
     }
   }
+  // Familles d'indicateurs corrélés : le poids cumulé d'une famille est plafonné (fc) pour qu'un même message
+  // (ex. tendance de l'indice mondial, du S&P 500 et de ses ETF) ne compte pas dix fois dans le vote.
+  const FAMILIES = [
+    ['bourse',   'eq_tech',         16, i => /^(rsi|macd|stoch|mm50|mm200|cross|bollinger|atr)(_cw8|_ese|_paeem|_paasi|_spx)?$/.test(i.id)],
+    ['bourse',   'macro_stress',     4, i => ['yield_curve','hy_spread','fin_stress','sahm'].includes(i.id)],
+    ['bourse',   'valuation',        5, i => ['cape','pe_fwd','erp'].includes(i.id)],
+    ['crypto',   'alt_tech',        10, i => /_(eth|sol|hype)$/.test(i.id)],
+    ['crypto',   'btc_tech',         6, i => ['btcrsi','btcrsim','btcmacd','bollinger_btc','atr_btc','btcsupp'].includes(i.id)],
+    ['crypto',   'halving',          3, i => /halving|cycle_progress/.test(i.id)],
+    ['matieres', 'uranium',          8, i => /_(ura|urnm|ccj)$/.test(i.id)],
+    ['matieres', 'oil',              8, i => /_(wti|brent|ng)$/.test(i.id)],
+    ['matieres', 'precious_tech',   12, i => /_(gold|silver|platinum|palladium)$/.test(i.id)],
+    ['matieres', 'industrial_tech',  8, i => /_(copper|alum)$/.test(i.id)],
+    ['matieres', 'inflation_macro',  5, i => ['realrates','infl_be','cpi'].includes(i.id)],
+  ];
+  for (const [tab, fam, cap, test] of FAMILIES) {
+    for (const g of data[tab]) for (const i of g.indicators) if (test(i)) { i.f = fam; i.fc = cap; }
+  }
   return data;
 }
 
