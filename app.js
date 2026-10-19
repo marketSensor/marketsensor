@@ -10,7 +10,7 @@ const APP = {
   history: {}, calendar: [],
   compareMode: false, calendarOpen: false,
   horizon: (() => { try { return JSON.parse(localStorage.getItem('ms_horizon')) || 'all'; } catch { return 'all'; } })(),
-  backtest: null,
+  backtest: null, track: null,
 };
 
 /* ── Config (localStorage) ───────────────────────────────────────── */
@@ -285,35 +285,40 @@ function toggleGroupDisabled(tab, groupName) {
   renderContent();
 }
 
+/* Poids effectifs : le poids cumulé d'une famille d'indicateurs corrélés est plafonné (i.fc), comme côté serveur. */
+function effectiveWeights(list) {
+  const fam = {};
+  list.forEach(i => { if (i.f) fam[i.f] = (fam[i.f] || 0) + i.w; });
+  return list.map(i => (i.f && fam[i.f] > i.fc) ? i.w * i.fc / fam[i.f] : i.w);
+}
+
 function computeReco(groups, tab, horizon) {
   const activeTab = tab || APP.tab;
   const hz = horizon || APP.horizon || 'all';
   const skipH = i => hz !== 'all' && i.h !== hz;
-  let b=0, s=0, n=0, t=0, excluded=0, totalLive=0, aligned=0;
+  let excluded = 0;
+  const live = [];
   groups.forEach(g => {
     const disabled = isGroupDisabled(activeTab, g.name);
     g.indicators.forEach(i => {
       if (i.source !== 'live' || disabled) { excluded++; return; }
       if (skipH(i)) return;
-      totalLive++;
-      t += i.w;
-      if (i.sig==='buy')       { b += i.w; }
-      else if (i.sig==='sell') { s += i.w; }
-      else                     { n += i.w; }
+      live.push(i);
     });
+  });
+  const ws = effectiveWeights(live);
+  let b = 0, s = 0, t = 0;
+  live.forEach((i, k) => {
+    t += ws[k];
+    if (i.sig === 'buy') b += ws[k]; else if (i.sig === 'sell') s += ws[k];
   });
   const bp  = t ? Math.round(b/t*100) : 0;
   const sp  = t ? Math.round(s/t*100) : 0;
   const sig = bp>=45 ? 'buy' : sp>=35 ? 'sell' : 'neutral';
 
   // Nombre d'indicateurs alignés avec le signal dominant
-  groups.forEach(g => {
-    if (isGroupDisabled(activeTab, g.name)) return;
-    g.indicators.forEach(i => {
-      if (i.source !== 'live' || skipH(i)) return;
-      if (i.sig === sig) aligned++;
-    });
-  });
+  const totalLive = live.length;
+  const aligned = live.filter(i => i.sig === sig).length;
 
   // Score de confiance 0-100
   const confidence = totalLive > 0 ? Math.round(aligned / totalLive * 100) : 0;
@@ -390,7 +395,7 @@ function renderReco(groups) {
     </div>` : '';
 
   const hzBar = renderHorizonBar(groups, APP.tab);
-  const why   = renderAnalyst(APP.tab) + renderWhy(groups, APP.tab, r);
+  const why   = renderAnalyst(APP.tab) + renderWhy(groups, APP.tab, r) + renderTrack(APP.tab);
   html(gel('reco'), `
     ${divBanner}
     ${hzBar}
@@ -419,7 +424,7 @@ function renderReco(groups) {
 }
 
 /* ── Indicateur card ─────────────────────────────────────────────── */
-function renderIndicator(ind) {
+function renderIndicator(ind, tab) {
   const dots=[1,2,3].map(i=>`<span class="wd ${i<=ind.w?'on':'off'}"></span>`).join('');
   const clickAttr=`onclick="openTooltip('${ind.id}')" style="cursor:pointer"`;
   if (ind.source !== 'live') {
@@ -438,7 +443,7 @@ function renderIndicator(ind) {
   }
   return `<div class="ind ind-clickable" ${clickAttr}>
     <div class="ind-top">
-      <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span><span class="tag-live">Live</span>${ageTag(ind)}${btTag(ind.id)}</div>
+      <div class="ind-name-wrap"><span class="ind-name">${ind.name}</span><span class="tag-live">Live</span>${ageTag(ind)}${btTag(ind.id, tab)}</div>
       <div style="display:flex;align-items:center;gap:6px">
         ${starBtn(ind.id)}<span class="badge badge-${ind.sig}">${SIG[ind.sig]}</span>
         <span class="ind-detail-hint">⋯</span>
@@ -473,7 +478,7 @@ function renderGroups(tabId, data) {
         ${groupSummary(g)}
         <button class="group-toggle" onclick="event.stopPropagation();toggleGroupDisabled('${tabId}','${safeName}')" title="${disabled?'Réactiver':'Désactiver du calcul'}">${disabled?'⊕':'⊖'}</button>
       </div>
-      ${collapsed ? '' : `<div class="indicators">${g.indicators.map(renderIndicator).join('')}</div>`}
+      ${collapsed ? '' : `<div class="indicators">${g.indicators.map(i => renderIndicator(i, tabId)).join('')}</div>`}
     </div>`;
   }).join('');
 }
@@ -837,7 +842,7 @@ function openTooltip(indId) {
       <p style="margin:12px 0 0;font-size:13px;color:var(--text-2);line-height:1.6">${ind.desc}</p>
     </div>
     ${educ}
-    ${btBlock(ind.id)}
+    ${btBlock(ind.id, ind.tab)}
     <div style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;background:var(--bg-panel)">
       <div><div style="font-size:10px;color:var(--text-3);margin-bottom:4px">Importance</div><div class="weight">${dots}<span class="weight-label" style="margin-left:6px">${['','Faible','Modérée','Forte'][ind.w]}</span></div></div>
       <div style="text-align:right"><div style="font-size:10px;color:var(--text-3);margin-bottom:4px">Source</div><span style="font-size:12px;color:${ind.source==='live'?'var(--green)':'var(--amber)'}">● ${ind.source==='live'?'Temps réel':'Donnée simulée'}</span></div>
@@ -898,7 +903,7 @@ async function refresh() {
     const ts=APP.lastUpdate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const bk=BACKEND?'· Backend ✓':'· ⚠ Backend non configuré';
     setStatus('live',`${ts} · ${APP.liveCount} live ${bk}`);
-    await Promise.all([reportSignals(), loadHistory(), loadCalendar(), loadBacktest(), loadAnalysis()]);
+    await Promise.all([reportSignals(), loadHistory(), loadCalendar(), loadBacktest(), loadAnalysis(), loadTrack()]);
     renderContent();
     checkSignalChanges();
   } catch(e) {
