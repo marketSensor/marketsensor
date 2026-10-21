@@ -7,6 +7,12 @@ const AI = {
   set key(v)  { try { v ? localStorage.setItem('ms_ai_key', v) : localStorage.removeItem('ms_ai_key'); } catch {} },
   get model() { try { return localStorage.getItem('ms_ai_model') || 'claude-sonnet-5-5'; } catch { return 'claude-sonnet-5-5'; } },
   set model(v){ try { localStorage.setItem('ms_ai_model', v); } catch {} },
+  get gkey()  { try { return localStorage.getItem('ms_gemini_key') || ''; } catch { return ''; } },
+  set gkey(v) { try { v ? localStorage.setItem('ms_gemini_key', v) : localStorage.removeItem('ms_gemini_key'); } catch {} },
+  gmodel: 'gemini-3.8-flash',
+  // Fournisseur actif : Gemini (gratuit) s'il a une clé, sinon Claude
+  get provider() { return this.gkey ? 'gemini' : (this.key ? 'anthropic' : ''); },
+  get hasKey() { return !!(this.gkey || this.key); },
 };
 
 const DECISION = {
@@ -44,7 +50,7 @@ function renderAnalyst(tab) {
   }
   const D = DECISION[m.decision] || DECISION.attendre;
   const isLlm = a.source === 'llm';
-  const src = isLlm ? `Rédigée par Claude (${esc(a.modele || 'IA')}) · ${ageText(a.genere_le)}`
+  const src = isLlm ? `Rédigée par ${esc(a.fournisseur || 'Claude')} (${esc(a.modele || 'IA')}) · ${ageText(a.genere_le)}`
                     : `Analyse automatique à règles · ${ageText(a.genere_le)} — l'IA n'est pas activée`;
   const list = (arr, cls) => `<ul class="ai-list ${cls || ''}">${(arr || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
   const keys = (m.indicateurs_cles || []).map(id => {
@@ -111,10 +117,11 @@ function renderAssistant() {
   const head = `<div class="modal-header"><div><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Assistant</div>
       <h2 class="modal-title">🧠 Analyste trader-investisseur</h2></div>
       <button class="icon-btn" onclick="closeAssistant()">✕</button></div>`;
-  if (!AI.key) {
-    m.innerHTML = head + `<div class="ai-body"><p class="ai-resume">Pour discuter avec l'analyste, collez votre clé API Anthropic. Elle reste dans votre navigateur (jamais envoyée ailleurs que chez Anthropic) et chaque question coûte quelques centimes au plus.</p>
-      <input id="ai-key-input" class="text-input" type="password" placeholder="sk-ant-…" autocomplete="off" />
-      <div class="ai-row"><button class="btn-primary" onclick="saveAiKey()">Enregistrer la clé</button></div>
+  if (!AI.hasKey) {
+    m.innerHTML = head + `<div class="ai-body"><p class="ai-resume">Pour discuter avec l'analyste, collez une clé API. <strong>Gemini (Google AI Studio) est gratuit, sans carte bancaire</strong> ; une clé Anthropic (payante) fonctionne aussi. La clé reste dans votre navigateur et n'est envoyée qu'au fournisseur correspondant.</p>
+      <input id="ai-key-input" class="text-input" type="password" placeholder="Clé Gemini (AIza…) ou Anthropic (sk-ant-…)" autocomplete="off" />
+      <div class="ai-row"><button class="btn-primary" onclick="saveAiKey()">Enregistrer la clé</button>
+      <a class="link-btn" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Obtenir une clé Gemini gratuite</a></div>
       <p class="ai-muted">Sans clé, l'analyse du jour reste visible sur chaque onglet (analyse automatique ou rédigée par l'IA si activée côté serveur).</p></div>`;
     return;
   }
@@ -128,35 +135,53 @@ function renderAssistant() {
       <input id="ai-input" class="text-input" placeholder="Votre question…" autocomplete="off" ${AI.busy ? 'disabled' : ''} />
       <button class="btn-primary" ${AI.busy ? 'disabled' : ''}>Envoyer</button>
     </form>
-    <div class="ai-tools"><span class="ai-muted">${esc(AI.model)}</span>
+    <div class="ai-tools"><span class="ai-muted">${esc(AI.provider === 'gemini' ? AI.gmodel : AI.model)}</span>
       <button class="link-btn" onclick="AI.messages=[];renderAssistant()">Nouvelle conversation</button>
-      <button class="link-btn" onclick="AI.key='';renderAssistant()">Retirer la clé</button></div>`;
+      <button class="link-btn" onclick="AI.key='';AI.gkey='';renderAssistant()">Retirer la clé</button></div>`;
   const c = gel('ai-chat'); if (c) c.scrollTop = c.scrollHeight;
 }
 function saveAiKey() {
   const v = (gel('ai-key-input')?.value || '').trim();
-  if (v) { AI.key = v; renderAssistant(); }
+  if (!v) return;
+  if (v.startsWith('sk-ant')) AI.key = v; else AI.gkey = v;
+  renderAssistant();
 }
 
 async function askAssistant(q) {
   q = (q || '').trim();
-  if (!q || AI.busy || !AI.key) return;
+  if (!q || AI.busy || !AI.hasKey) return;
   AI.messages.push({ role: 'user', content: q }); AI.busy = true; renderAssistant();
   const d = AI.dossier;
   const context = d
     ? `${d.consignes_chat}\n\nOnglet actuellement affiché : ${TABS.find(t => t.id === APP.tab)?.label}.\n\n=== DOSSIER (JSON) ===\n${JSON.stringify({ ...d, consignes_chat: undefined, analyse_du_jour: AI.analysis?.marches ? { source: AI.analysis.source, synthese_globale: AI.analysis.synthese_globale, marches: AI.analysis.marches } : undefined })}`
     : 'Tu es un analyste trader-investisseur. Le dossier de données est indisponible : dis-le et reste prudent.';
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': AI.key, 'anthropic-version': '2023-06-01',
-                 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: AI.model, max_tokens: 1500, system: context,
-                             messages: AI.messages.slice(-12).map(({ role, content }) => ({ role, content })) }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(r.status === 401 ? 'Clé API refusée (401). Vérifiez-la.' : j?.error?.message || `Erreur ${r.status}`);
-    AI.messages.push({ role: 'assistant', content: (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || '(réponse vide)' });
+    const hist = AI.messages.slice(-12);
+    let text;
+    if (AI.provider === 'gemini') {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${AI.gmodel}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': AI.gkey },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: context }] },
+          contents: hist.map(x => ({ role: x.role === 'user' ? 'user' : 'model', parts: [{ text: x.content }] })),
+          generationConfig: { maxOutputTokens: 2048, temperature: 0.4 } }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error([400, 403].includes(r.status) ? 'Clé Gemini refusée. Vérifiez-la.' : r.status === 429 ? 'Limite gratuite Gemini atteinte, réessayez plus tard.' : j?.error?.message || `Erreur ${r.status}`);
+      text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+    } else {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': AI.key, 'anthropic-version': '2023-06-01',
+                   'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: AI.model, max_tokens: 1500, system: context,
+                               messages: hist.map(({ role, content }) => ({ role, content })) }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(r.status === 401 ? 'Clé API refusée (401). Vérifiez-la.' : j?.error?.message || `Erreur ${r.status}`);
+      text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    }
+    AI.messages.push({ role: 'assistant', content: text || '(réponse vide)' });
   } catch (e) {
     AI.messages.push({ role: 'assistant', content: `⚠ ${e.message || e}` });
   }
