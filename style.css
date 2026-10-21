@@ -880,3 +880,17 @@ body {
 .jr-list th, .jr-list td { padding:6px 4px; border-bottom:1px solid rgba(148,163,184,.15); text-align:left; vertical-align:top; }
 .jr-pos { color:var(--green); } .jr-neg { color:var(--red); }
 .jr-tag { font-size:11px; padding:1px 7px; border-radius:999px; background:rgba(148,163,184,.15); white-space:nowrap; }
+
+/* Grands investisseurs */
+.ai-modal.inv-modal { width:min(900px, calc(100vw - 24px)); }
+.inv-tabs { display:flex; gap:6px; padding:0 20px; margin:8px 0; flex-wrap:wrap; }
+.inv-body .inv-tabs { padding:0; }
+.inv-tab { border:1px solid var(--border); background:transparent; color:var(--text-2, #94a3b8); border-radius:999px; padding:5px 14px; font-size:13px; cursor:pointer; }
+.inv-tab.on { background:var(--accent, #3b82f6); border-color:var(--accent, #3b82f6); color:#fff; }
+.inv-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:6px 0 10px; }
+.inv-cards > div { background:rgba(148,163,184,.08); border-radius:10px; padding:9px 11px; font-size:12px; }
+.inv-cards b { display:block; font-size:17px; margin-top:2px; }
+.inv-tag { font-size:11px; padding:1px 8px; border-radius:999px; background:rgba(148,163,184,.15); white-space:nowrap; }
+.inv-tag.up { background:rgba(34,197,94,.15); color:#22c55e; } .inv-tag.down { background:rgba(239,68,68,.15); color:#ef4444; }
+.inv-moves { font-size:12.5px; line-height:1.6; margin:10px 0; }
+.jr-list .r, .jr-list th.r { text-align:right; }
