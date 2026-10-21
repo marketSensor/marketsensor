@@ -903,7 +903,7 @@ async function refresh() {
     const ts=APP.lastUpdate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const bk=BACKEND?'· Backend ✓':'· ⚠ Backend non configuré';
     setStatus('live',`${ts} · ${APP.liveCount} live ${bk}`);
-    await Promise.all([reportSignals(), loadHistory(), loadCalendar(), loadBacktest(), loadAnalysis(), loadTrack()]);
+    await Promise.all([reportSignals(), loadHistory(), loadCalendar(), loadBacktest(), loadAnalysis(), loadTrack(), loadLevels()]);
     renderContent();
     checkSignalChanges();
   } catch(e) {
