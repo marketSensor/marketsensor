@@ -113,14 +113,19 @@ function toggleCollapse(tab, name) {
 }
 const ASSET_GROUPS = ['Ethereum (ETH)', 'Solana (SOL)', 'Hyperliquid (HYPE)'];
 /* Verdict propre à un actif crypto : même vote pondéré que le verdict global, limité à son groupe */
-function groupVerdict(g) {
+function groupVerdictObj(g) {
   const live = g.indicators.filter(i => i.source === 'live');
   const ws = effectiveWeights(live);
   let b = 0, s = 0, t = 0;
   live.forEach((i, k) => { t += ws[k]; if (i.sig === 'buy') b += ws[k]; else if (i.sig === 'sell') s += ws[k]; });
-  if (!t) return '';
+  if (!t) return null;
   const bp = Math.round(b / t * 100), sp = Math.round(s / t * 100);
-  const v = bp >= 45 ? ['buy', 'Achat'] : sp >= 35 ? ['sell', 'Vente'] : ['neutral', 'Neutre'];
+  return { bp, sp, sig: bp >= 45 ? 'buy' : sp >= 35 ? 'sell' : 'neutral' };
+}
+function groupVerdict(g) {
+  const o = groupVerdictObj(g); if (!o) return '';
+  const { bp, sp } = o;
+  const v = o.sig === 'buy' ? ['buy', 'Achat'] : o.sig === 'sell' ? ['sell', 'Vente'] : ['neutral', 'Neutre'];
   return `<span class="grp-verdict gv-${v[0]}" title="Vote pondéré des indicateurs de cet actif : ${bp} % acheteurs, ${sp} % vendeurs">${v[1]} · ${bp}/${sp}</span>`;
 }
 
@@ -202,7 +207,8 @@ function renderTrack(tab) {
   const hs = [['1m', '1 mois'], ['3m', '3 mois'], ['6m', '6 mois'], ['12m', '12 mois']];
   const row = (lbl, k) => `<tr><td>${lbl}</td>${hs.map(([h]) => `<td>${f(v[h]?.[k])}</td>`).join('')}</tr>`;
   const since = t.depuis ? new Date(t.depuis).toLocaleDateString('fr-FR') : '—';
-  const warn = t.significatif ? '' : `<p class="tk-warn">⚠ Trop tôt pour conclure : seuls les signaux assez anciens sont évalués (il faut au moins ${t.seuil_significatif} par horizon pour que ce suivi soit parlant).</p>`;
+  const sigOk = v && t.tabs[tab].significatif !== undefined ? t.tabs[tab].significatif : t.significatif;
+  const warn = sigOk ? '' : `<p class="tk-warn">⚠ Trop tôt pour conclure : seuls les signaux assez anciens sont évalués (il faut au moins ${t.seuil_significatif} par horizon pour que ce suivi soit parlant).</p>`;
   return `<details class="why"><summary>Suivi réel des signaux du site — ${esc(asset)}</summary>
     <p class="why-rule">Rendement moyen de ${esc(asset)} après chaque verdict publié par le site, depuis le ${since} (${t.jours_de_recul} jours de recul). Entre parenthèses : nombre de signaux évalués.</p>
     ${warn}
@@ -210,4 +216,30 @@ function renderTrack(tab) {
       <tbody>${row('Achat', 'buy')}${row('Neutre', 'neutral')}${row('Vente', 'sell')}</tbody></table>
     <p class="why-rule">Un bon signal d'achat devrait être suivi de meilleurs rendements qu'un signal de vente. Chaque ligne est un état du verdict global ; les journées voisines se ressemblent, donc l'échantillon réel est plus petit que les nombres affichés.</p>
   </details>`;
+}
+
+
+/* ── Niveaux de prix indicatifs (levels.json) ─────────────────────── */
+async function loadLevels() {
+  try {
+    const r = await fetch(`${BACKEND.replace(/\/$/, '')}/levels.json`);
+    if (r.ok) APP.levels = (await r.json()).actifs;
+  } catch (e) { console.warn('[niveaux]', e.message); }
+}
+function fmtPx(v) {
+  if (v == null || isNaN(v)) return '—';
+  const d = v >= 1000 ? 0 : v >= 10 ? 1 : v >= 1 ? 2 : 4;
+  return v.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function renderLevels(key) {
+  const L = APP.levels?.[key]; if (!L) return '';
+  const row = (x, cls) => `<tr class="${cls}"><td>${esc(x.label)}</td><td>${fmtPx(x.prix)} $</td><td>${x.dist_pct > 0 ? '+' : ''}${x.dist_pct.toFixed(1)} %</td></tr>`;
+  const res = [...(L.resistances || [])].reverse().map(x => row(x, 'lv-res')).join('');
+  const sup = (L.supports || []).map(x => row(x, 'lv-sup')).join('');
+  const rng = L.fourchette_2atr ? ` · zone de fluctuation normale (± 2 ATR) : ${fmtPx(L.fourchette_2atr[0])} – ${fmtPx(L.fourchette_2atr[1])} $` : '';
+  return `<div class="lv"><div class="ai-h">Niveaux de prix indicatifs</div>
+    <p class="ai-muted">Prix ${fmtPx(L.prix)} $ au ${new Date(L.date).toLocaleDateString('fr-FR')}${L.atr_pct ? ` · volatilité ${L.atr_pct.toFixed(1)} %/jour` : ''}${rng}</p>
+    <table class="bt-table lv-table"><thead><tr><th>Repère</th><th>Niveau</th><th>Écart</th></tr></thead>
+      <tbody>${res}<tr class="lv-now"><td>Prix actuel</td><td>${fmtPx(L.prix)} $</td><td></td></tr>${sup}</tbody></table>
+    <p class="ai-muted">Repères où le prix a déjà réagi (plus hauts/bas récents, moyennes mobiles) : ce ne sont pas des prévisions, et ils cèdent parfois.</p></div>`;
 }

@@ -99,9 +99,11 @@ function renderAssets(a) {
       <div class="ai-head"><span class="ai-title">${esc(ASSET_NAMES[k])}</span>
         <span class="ai-dec ai-dec-${D.cls}">${D.icon} ${D.label}</span><span class="ai-conf">${CONF[x.confiance] || ''}</span></div>
       <p class="ai-resume">${esc(x.resume)}</p>
+      ${renderLevels(k)}
       <div class="ai-h why-buy">Acheter si</div>${list(x.achat_si)}
       <div class="ai-h why-sell">Alléger / vendre si</div>${list(x.vente_si)}
       <div class="ai-h">Risques</div>${list(x.risques)}
+      ${renderTrack(k)}
     </div>`;
   }).join('');
   return cards ? `<div class="ai-assets"><div class="ai-h">Focus Solana &amp; Hyperliquid</div>${cards}

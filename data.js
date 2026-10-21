@@ -239,6 +239,7 @@ function defaultData() {
     ['crypto',   'alt_tech',        10, i => /_(eth|sol|hype)$/.test(i.id)],
     ['crypto',   'sol_chain',        8, i => /^sol_/.test(i.id)],
     ['crypto',   'hype_chain',       8, i => /^hype_/.test(i.id)],
+    ['crypto',   'btc_valuation',    4, i => ['mvrv','nupl','mvrv_ratio'].includes(i.id)],
     ['crypto',   'btc_tech',         6, i => ['btcrsi','btcrsim','btcmacd','bollinger_btc','atr_btc','btcsupp'].includes(i.id)],
     ['crypto',   'halving',          3, i => /halving|cycle_progress/.test(i.id)],
     ['matieres', 'uranium',          8, i => /_(ura|urnm|ccj)$/.test(i.id)],
