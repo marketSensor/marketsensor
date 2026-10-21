@@ -857,3 +857,12 @@ body {
 @media print { .ai-ask, .ai-foot .btn-primary { display:none !important; } .ai-more { display:block; } }
 .tk-n { color:var(--text-3); font-size:11px; }
 .tk-warn { font-size:12.5px; color:var(--amber); background:rgba(255,180,50,0.08); border:1px solid rgba(255,180,50,0.3); border-radius:8px; padding:8px 12px; margin:8px 0; }
+
+/* Verdict par actif crypto + focus SOL/HYPE */
+.grp-verdict { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; margin-left:8px; white-space:nowrap; }
+.gv-buy { background:rgba(34,197,94,.15); color:#22c55e; }
+.gv-sell { background:rgba(239,68,68,.15); color:#ef4444; }
+.gv-neutral { background:rgba(148,163,184,.15); color:var(--text-2, #94a3b8); }
+.ai-assets { margin-top:14px; border-top:1px solid var(--border, rgba(148,163,184,.2)); padding-top:10px; }
+.ai-asset { background:rgba(148,163,184,.06); border-radius:10px; padding:12px 14px; margin:10px 0; }
+.ai-asset .ai-head { flex-wrap:wrap; gap:8px; }
