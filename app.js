@@ -867,7 +867,7 @@ function exportPDF() {
 function openSettings() {
   const emEl = gel('alert-email');
   if (emEl) emEl.value = Config.alertEmail;
-  const k = gel('ai-key-setting'); if (k) k.value = AI.key;
+  const k = gel('ai-key-setting'); if (k) k.value = AI.gkey || AI.key;
   const mo = gel('ai-model-setting'); if (mo) mo.value = AI.model;
   gel('settings-overlay').style.display = 'block';
   gel('settings-modal').style.display   = 'block';
@@ -878,7 +878,7 @@ function closeSettings() {
 }
 function saveSettings() {
   if (gel('alert-email')) Config.alertEmail = (gel('alert-email').value || '').trim();
-  if (gel('ai-key-setting')) { AI.key = gel('ai-key-setting').value.trim(); AI.model = gel('ai-model-setting').value; }
+  if (gel('ai-key-setting')) { const kv = gel('ai-key-setting').value.trim(); if (kv.startsWith('sk-ant')) { AI.key = kv; AI.gkey = ''; } else { AI.gkey = kv; if (!kv) AI.key = ''; } AI.model = gel('ai-model-setting').value; }
   closeSettings();
   refresh();
 }
