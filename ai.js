@@ -80,11 +80,32 @@ function renderAnalyst(tab) {
       ${keys ? `<div class="ai-h">Indicateurs décisifs</div><div class="ai-keys">${keys}</div>` : ''}
       <p class="ai-muted">${esc(a.qualite_des_donnees || '')}</p>
     </details>
+    ${tab === 'crypto' ? renderAssets(a) : ''}
     <div class="ai-foot">
       <button class="btn-primary ai-ask" onclick="openAssistant()">💬 Poser une question à l'analyste</button>
       <span class="ai-muted">${esc(a.avertissement || '')}</span>
     </div>
   </div>`;
+}
+
+/* Focus par actif (Solana, Hyperliquid) dans la carte Crypto */
+const ASSET_NAMES = { sol: 'Solana (SOL)', hype: 'Hyperliquid (HYPE)' };
+function renderAssets(a) {
+  const ac = a?.actifs_crypto; if (!ac) return '';
+  const list = arr => `<ul class="ai-list">${(arr || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+  const cards = ['sol', 'hype'].filter(k => ac[k]).map(k => {
+    const x = ac[k], D = DECISION[x.decision] || DECISION.attendre;
+    return `<div class="ai-asset">
+      <div class="ai-head"><span class="ai-title">${esc(ASSET_NAMES[k])}</span>
+        <span class="ai-dec ai-dec-${D.cls}">${D.icon} ${D.label}</span><span class="ai-conf">${CONF[x.confiance] || ''}</span></div>
+      <p class="ai-resume">${esc(x.resume)}</p>
+      <div class="ai-h why-buy">Acheter si</div>${list(x.achat_si)}
+      <div class="ai-h why-sell">Alléger / vendre si</div>${list(x.vente_si)}
+      <div class="ai-h">Risques</div>${list(x.risques)}
+    </div>`;
+  }).join('');
+  return cards ? `<div class="ai-assets"><div class="ai-h">Focus Solana &amp; Hyperliquid</div>${cards}
+    <p class="ai-muted">Indicateurs on-chain et de levier non testés rétroactivement : traitez ces signaux comme indicatifs, avec des positions réduites.</p></div>` : '';
 }
 
 /* ── Chat ────────────────────────────────────────────────────────── */

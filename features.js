@@ -111,10 +111,23 @@ function toggleCollapse(tab, name) {
   _ls.set('ms_collapse', m);
   renderContent();
 }
+const ASSET_GROUPS = ['Ethereum (ETH)', 'Solana (SOL)', 'Hyperliquid (HYPE)'];
+/* Verdict propre à un actif crypto : même vote pondéré que le verdict global, limité à son groupe */
+function groupVerdict(g) {
+  const live = g.indicators.filter(i => i.source === 'live');
+  const ws = effectiveWeights(live);
+  let b = 0, s = 0, t = 0;
+  live.forEach((i, k) => { t += ws[k]; if (i.sig === 'buy') b += ws[k]; else if (i.sig === 'sell') s += ws[k]; });
+  if (!t) return '';
+  const bp = Math.round(b / t * 100), sp = Math.round(s / t * 100);
+  const v = bp >= 45 ? ['buy', 'Achat'] : sp >= 35 ? ['sell', 'Vente'] : ['neutral', 'Neutre'];
+  return `<span class="grp-verdict gv-${v[0]}" title="Vote pondéré des indicateurs de cet actif : ${bp} % acheteurs, ${sp} % vendeurs">${v[1]} · ${bp}/${sp}</span>`;
+}
+
 function groupSummary(g, horizon) {
   const c = { buy: 0, sell: 0, neutral: 0 };
   g.indicators.forEach(i => { if (i.source === 'live') c[i.sig]++; });
-  return `<span class="grp-sum"><span class="gs-buy">↑${c.buy}</span><span class="gs-sell">↓${c.sell}</span><span class="gs-neu">—${c.neutral}</span></span>`;
+  return (ASSET_GROUPS.includes(g.name) ? groupVerdict(g) : '') + `<span class="grp-sum"><span class="gs-buy">↑${c.buy}</span><span class="gs-sell">↓${c.sell}</span><span class="gs-neu">—${c.neutral}</span></span>`;
 }
 
 /* ── Liste de suivi + notifications (navigateur, quand la page est ouverte) ── */
