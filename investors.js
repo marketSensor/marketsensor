@@ -54,13 +54,27 @@ function renderBuffett(b) {
       <p class="ai-muted">Elles proviennent des déclarations 13F déposées à la SEC. Le serveur de mise à jour n'a pas pu les récupérer pour le moment : le site réessaie à chaque actualisation.</p>${links}`;
   }
   const f = b.filing || {};
-  const cash = b.cash || {};
-  const c1 = cash.cash, c2 = cash.tbills;
-  const cashTxt = (c1 || c2) ? `${c1 ? `Trésorerie : <b>${fmtMoney(c1.val)}</b>` : ''}${c1 && c2 ? ' · ' : ''}${c2 ? `Bons du Trésor : <b>${fmtMoney(c2.val)}</b>` : ''}<span class="ai-muted"> (comptes au ${fmtDate((c1 || c2).end)})</span>` : '';
+  const k = b.comptes || {};
+  const fl = k.flux_actions || {};
+  const sgn = v => (v > 0 ? '+' : '') + fmtMoney(v).replace('-', '−');
+  const net = o => o && o.achats != null && o.ventes != null ? o.achats - o.ventes : null;
+  const flowLine = (lbl, o) => o && (o.achats != null || o.ventes != null)
+    ? `<div><b>${lbl}</b> : ventes ${fmtMoney(o.ventes)} · achats ${fmtMoney(o.achats)} → <b>${net(o) > 0 ? 'acheteur net' : 'vendeur net'} de ${fmtMoney(Math.abs(net(o)))}</b></div>` : '';
+  const dv = k.liquidites_total != null && k.liquidites_debut_annee ? k.liquidites_total - k.liquidites_debut_annee : null;
+  const liquid = k.liquidites_total != null ? `<div class="inv-box"><div class="ai-h">Liquidités de Berkshire</div>
+      <p class="ai-resume"><b>${fmtMoney(k.liquidites_total)}</b> au ${fmtDate(k.periode)} : trésorerie ${fmtMoney(k.tresorerie)} + bons du Trésor américain ${fmtMoney(k.bons_du_tresor)}.
+      ${dv != null ? `<span class="ai-muted">(${sgn(dv)} depuis le début de l'année)</span>` : ''}</p>
+      <p class="ai-muted">Chiffres exacts des comptes trimestriels (10-Q déposé le ${fmtDate(k.depose)}) ; une partie de la trésorerie sert aux activités d'exploitation (chemins de fer, énergie), elle n'est pas toute disponible pour investir.</p></div>` : '';
+  const sales = (fl.trimestre || fl.depuis_debut_annee) ? `<div class="inv-box"><div class="ai-h">Achats et ventes d'actions (comptes de Berkshire)</div>
+      <div class="inv-moves">${flowLine('Dernier trimestre', fl.trimestre)}${flowLine(`Depuis le début de l'année (${fl.depuis_debut_annee?.mois || '?'} mois)`, fl.depuis_debut_annee)}${flowLine('Même période, an dernier', fl.meme_periode_annee_precedente)}
+      ${fl.depuis_debut_annee?.rachats ? `<div><b>Rachats de ses propres actions</b> depuis le début de l'année : ${fmtMoney(fl.depuis_debut_annee.rachats)}</div>` : ''}</div>
+      <p class="ai-muted">Il s'agit de tous les titres cotés détenus par les filiales d'assurance et autres, pas seulement des positions du 13F.</p></div>` : '';
+  const fe = b.flux_estimes;
+  const est = fe ? `<p class="ai-muted">Estimation d'après le 13F, trimestre clos le ${fmtDate(f.period)} (variation du nombre de titres × cours de fin de trimestre) : achats ≈ ${fmtMoney(fe.achats)}, ventes ≈ ${fmtMoney(fe.ventes)}. C'est une approximation : les prix réels d'exécution et les opérations dans le trimestre ne sont pas connus.</p>` : '';
   const rows = b.holdings.slice(0, 20).map(h => `<tr><td>${esc(h.name)}${h.ticker ? ` <span class="ai-muted">${esc(h.ticker)}</span>` : ''}</td>
     <td class="r">${h.pct != null ? h.pct.toFixed(1) + ' %' : '—'}</td><td class="r">${fmtMoney(h.value)}</td><td>${chTag(h.change)}</td></tr>`).join('');
-  const moves = (t, lbl) => { const l = b.holdings.filter(h => h.change.type === t); return l.length ? `<div><b>${lbl}</b> : ${l.map(h => esc(h.name) + (h.change.pct != null ? ` (${h.change.pct > 0 ? '+' : ''}${h.change.pct} %)` : '')).join(', ')}</div>` : ''; };
-  const sold = (b.sold_out || []).length ? `<div><b>Positions soldées</b> : ${b.sold_out.map(s => esc(s.name)).join(', ')}</div>` : '';
+  const moves = (t, lbl) => { const l = b.holdings.filter(h => h.change.type === t); return l.length ? `<div><b>${lbl}</b> : ${l.map(h => esc(h.name) + (h.change.pct != null ? ` (${h.change.pct > 0 ? '+' : ''}${h.change.pct} %` : ' (') + (h.delta_value ? `${h.change.pct != null ? ', ' : ''}≈ ${h.delta_value > 0 ? '+' : '−'}${fmtMoney(Math.abs(h.delta_value))}` : '') + ')').join(', ')}</div>` : ''; };
+  const sold = (b.sold_out || []).length ? `<div><b>Positions soldées</b> : ${b.sold_out.map(s => `${esc(s.name)} (≈ −${fmtMoney(s.value)})`).join(', ')}</div>` : '';
   return `<div class="inv-cards">
       <div><span>Portefeuille actions US</span><b>${fmtMoney(b.total_value)}</b></div>
       <div><span>Positions</span><b>${b.n_positions}</b></div>
@@ -68,7 +82,7 @@ function renderBuffett(b) {
       <div><span>Trimestre déclaré</span><b>${fmtDate(f.period)}</b></div>
     </div>
     <p class="ai-muted">Déclaration déposée le ${fmtDate(f.filed)} (${invAge(f.filed)}), comparée au trimestre précédent (${fmtDate(b.previous?.period)}). ${f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">Voir le dépôt SEC</a>` : ''}</p>
-    ${cashTxt ? `<p class="ai-resume">${cashTxt}</p>` : ''}
+    ${liquid}${sales}${est}
     ${b.buffett_indicator ? `<p class="ai-resume">Indicateur de Buffett (actions US / PIB, approximation à partir des données de la Fed) : <b>${b.buffett_indicator} %</b> <span class="ai-muted">— repère de valorisation globale ; au-delà d'environ 140 %, le marché est historiquement cher, sans indication de timing.</span></p>` : ''}
     <div class="ai-h">Principales positions</div>
     <div style="overflow-x:auto"><table class="jr-list"><thead><tr><th>Titre</th><th class="r">Poids</th><th class="r">Valeur</th><th>vs trimestre précédent</th></tr></thead><tbody>${rows}</tbody></table></div>
