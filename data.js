@@ -96,7 +96,7 @@ function defaultData() {
       { name: 'Indicateurs de Cycle', indicators: [
         { id:'picycle',  name:'Pi Cycle Top',           val:28, sig:'buy',     w:3, raw:'—',        unit:'',     source:'live', desc:'Pi Cycle calculé depuis les prix BTC (CoinGecko) — chargement.' },
         { id:'puell',    name:'Puell Multiple',         val:50, sig:'neutral', w:2, raw:'—',        unit:'',     source:'simulated', desc:'Puell Multiple (Bitbo) — indisponible, API Bitbo payante (clé requise).' },
-        { id:'mayer',    name:'Mayer Multiple',         val:50, sig:'neutral', w:2, raw:'—',        unit:'x',    source:'live', desc:'Prix BTC / MM200 (Bitbo / yfinance) — chargement.' },
+        { id:'mayer',    name:'Mayer Multiple',         val:50, sig:'neutral', w:1, raw:'—',        unit:'x',    source:'live', desc:'Prix BTC / MM200 (Bitbo / yfinance) — chargement.' },
         { id:'rainbow',  name:'Rainbow Chart Zone',     val:52, sig:'neutral', w:1, raw:'—',        unit:'',     source:'live', desc:'Rainbow Chart BTC (log-régression) — chargement.' },
       ]},
       { name: 'Indicateurs Sociaux', indicators: [
@@ -110,7 +110,7 @@ function defaultData() {
         { id:'cycle_progress',     name:'Progression du cycle',    val:25, sig:'buy', w:2, raw:'—', unit:'', source:'live', desc:'% du cycle post-halving H4 écoulé — chargement.' },
       ]},
       { name: 'Analyse Technique BTC', indicators: [
-        { id:'btcrsi',       name:'RSI Bitcoin Journalier',  val:50, sig:'neutral', w:2, raw:'—', unit:'',    source:'live', desc:'RSI BTC (14j) depuis les prix CoinGecko — chargement.' },
+        { id:'btcrsi',       name:'RSI Bitcoin Journalier',  val:50, sig:'neutral', w:1, raw:'—', unit:'',    source:'live', desc:'RSI BTC (14j) depuis les prix CoinGecko — chargement.' },
         { id:'btcrsim',      name:'RSI Bitcoin Mensuel',     val:50, sig:'neutral', w:3, raw:'—', unit:'',    source:'live', desc:'RSI mensuel BTC — signal clé de cycle.' },
         { id:'btcmacd',      name:'MACD Bitcoin',            val:50, sig:'neutral', w:2, raw:'—', unit:'',    source:'live', desc:'MACD BTC depuis les prix CoinGecko — chargement.' },
         { id:'bollinger_btc',name:'Bollinger Bands BTC',     val:50, sig:'neutral', w:1, raw:'—', unit:'',    source:'live', desc:'Position BTC dans ses bandes de Bollinger — chargement.' },
@@ -152,7 +152,7 @@ function defaultData() {
     matieres: [
       { name: 'Macro & Dollar', indicators: [
         { id:'dxy',           name:'Dollar Index (DXY)',       val:30, sig:'buy',     w:3, raw:'—', unit:'',          source:'live',      desc:'DXY — chargement via le backend.' },
-        { id:'realrates',     name:'Taux réels (TIPS 10y)',    val:72, sig:'buy',     w:3, raw:'—', unit:'',          source:'live',      desc:'Taux réels TIPS 10y (FRED) — chargement.' },
+        { id:'realrates',     name:'Taux réels (TIPS 10y)',    val:72, sig:'buy',     w:1, raw:'—', unit:'',          source:'live',      desc:'Taux réels TIPS 10y (FRED) — chargement.' },
         { id:'infl_be',       name:'Inflation anticipée 10 ans', val:50, sig:'neutral', w:2, raw:'—', unit:'', source:'live', desc:'Inflation anticipée à 10 ans (FRED) — chargement via le backend.' },
         { id:'fed_liq',       name:'Liquidité Fed (bilan 3 mois)', val:50, sig:'neutral', w:1, raw:'—', unit:'', source:'live', desc:'Bilan de la Fed sur 3 mois (FRED) — chargement via le backend.' },
         { id:'cpi',           name:'Inflation CPI (USA)',      val:62, sig:'buy',     w:2, raw:'—', unit:'',          source:'live',      desc:'Inflation CPI annualisée (FRED) — chargement.' },
